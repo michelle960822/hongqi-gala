@@ -2986,6 +2986,31 @@ function commitBatchImport(validItems) {
     // 错开 id 时间避免冲突
     state.records.push(record);
     newRecordIds.push(record.id);
+    // 关键修复：同步到云端（之前漏了，导致 sync 覆盖为空）
+    apiPost('/api/records', {
+      id: record.id,
+      roleId: record.roleId,
+      roleName: record.roleName,
+      slotIdx: record.slotIdx,
+      date: record.date,
+      dateLabel: record.dateLabel,
+      time: record.time,
+      category: record.category,
+      platformId: record.platformId,
+      platform: record.platform,
+      followers: record.followers,
+      realName: record.realName,
+      idNumber: record.idNumber,
+      phone: record.phone,
+      deviceId: record.deviceId,
+      compCount: record.compCount,
+      companions: record.companions,
+      createdAt: record.createdAt,
+    }).then(resp => {
+      if (resp && resp.__error) {
+        console.warn('[batch] 云端同步失败：', resp);
+      }
+    });
   });
   saveRecords();
   // 自动勾选新导入的记录 → 用户可直接点批量操作
