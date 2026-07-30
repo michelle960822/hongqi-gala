@@ -1074,7 +1074,6 @@
       <a class="jump-chip" href="#sec-stats">📊 报名概览</a>
       <a class="jump-chip" href="#sec-records">📋 报名列表</a>
       <a class="jump-chip" href="#sec-import">📥 媒体批量导入</a>
-      <a class="jump-chip" href="#sec-device">🛠 设备管理</a>
       <a class="jump-chip" href="#sec-auth">🔐 安全管理</a>
     </div>
 
@@ -1138,24 +1137,7 @@
       </div>
     </div>
 
-    <!-- 5. 设备管理（默认折叠） -->
-    <div class="card collapsible collapsed" id="sec-device">
-      <h2 class="card-head" data-target="device-body">
-        <span>🛠 设备管理</span>
-        <span class="card-toggle">▾</span>
-      </h2>
-      <div class="card-body" id="device-body">
-        <div class="helper" style="background:#f9fafb;">
-          <strong>当前设备 ID：</strong>
-          <span id="currentDeviceId" style="font-family:ui-monospace,Consolas,monospace;font-size:12px;background:#fff;padding:2px 6px;border-radius:3px;border:1px solid var(--border);"></span>
-          <span id="currentDeviceStatus" style="margin-left:8px;font-weight:500;"></span>
-          <br>📌 一台手机（浏览器）只能填报一次。如果对接人换手机/换浏览器/开了无痕模式，会被视为新设备。
-        </div>
-        <div id="deviceMgmt"></div>
-      </div>
-    </div>
-
-    <!-- 6. 安全管理（默认折叠） -->
+    <!-- 5. 安全管理（默认折叠） -->
     <div class="card collapsible collapsed" id="sec-auth">
       <h2 class="card-head" data-target="auth-body">
         <span>🔐 安全管理</span>
@@ -2719,60 +2701,8 @@ function resetForm(clearSelection = true) {
 
 /* ==================== 管理视图 ==================== */
 function renderAdmin() {
-  renderDeviceMgmt();
   renderStats();
   renderRecordList();
-}
-
-function renderDeviceMgmt() {
-  const didEl = document.getElementById('currentDeviceId');
-  const statusEl = document.getElementById('currentDeviceStatus');
-  const wrap = document.getElementById('deviceMgmt');
-  if (!didEl || !wrap) return;
-
-  const did = getDeviceId();
-  const records = getRecordsByDeviceId(did);
-  didEl.textContent = did;
-
-  if (records.length > 0) {
-    statusEl.innerHTML = '';
-    statusEl.appendChild(el('span', {
-      style: 'background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-size:11px;'
-    }, `已绑定 ${records.length} 条报名`));
-  } else {
-    statusEl.innerHTML = '';
-    statusEl.appendChild(el('span', {
-      style: 'background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:11px;'
-    }, '当前设备未报名，可正常填报'));
-  }
-
-  wrap.innerHTML = '';
-  if (records.length > 0) {
-    const r = records[0];
-    wrap.appendChild(el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;' },
-      el('span', { style: 'font-size:13px;color:var(--text-2);' },
-        `已绑定：${r.realName}（${r.dateLabel} ${r.time}）`
-      ),
-      el('button', {
-        class: 'btn btn-secondary',
-        onclick: () => showQRModal(r.id)
-      }, '🎫 查看该记录二维码'),
-      el('button', {
-        class: 'btn-danger-text',
-        onclick: () => {
-          if (confirm(`确认解锁本机？\n\n这将允许本设备重新报名一次。\n（已有记录不会被删除）`)) {
-            clearDeviceId();
-            toast('已解锁本设备，可以重新报名', 'success');
-            renderAdmin();
-            renderRoleGrid();
-          }
-        }
-      }, '🔓 解锁本机')
-    ));
-    wrap.appendChild(el('div', { style: 'font-size:11px;color:var(--text-3);margin-top:8px;' },
-      '⚠️ 解锁仅清空设备绑定，不删除已报名记录。如需同时删除该记录，请到下方表格操作。'
-    ));
-  }
 }
 
 /* ==================== 媒体批量导入 ==================== */
@@ -4236,9 +4166,7 @@ function showDeviceLockedModal(firstRecord, allDeviceRecords) {
       )
     ),
     el('div', { style: 'font-size:12px;color:var(--text-3);margin-top:12px;line-height:1.6;' },
-      '如需修改报名信息（如改时段），请联系管理员，或在「📊 报名管理」tab 用签到编号找到这条记录后删除。',
-      el('br', {}),
-      '管理员可在「报名管理 → 🛠 设备管理」中解锁本设备。'
+      '如需修改报名信息（如改时段），请联系管理员，或在「📊 报名管理」tab 用签到编号找到这条记录后删除。'
     )
   );
   openModal({
