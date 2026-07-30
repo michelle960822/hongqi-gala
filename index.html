@@ -2804,10 +2804,38 @@ function parseCsvBatch() {
   // 校验
   const validItems = [];
   const invalidItems = [];
+
+  // 关键修复 1：CSV 内部查重（同一份表格内身份证号不能重复）
+  const seenIdNos = new Map(); // idNumber -> 第一个出现的 rowIndex
   items.forEach(it => {
-    const errors = [];
+    const idNo = (it.item.身份证号 || '').toUpperCase().trim();
+    if (idNo && /^\d{17}[\dXx]$/.test(idNo)) {
+      if (seenIdNos.has(idNo)) {
+        it._errors = it._errors || [];
+        it._errors.push(`与第 ${seenIdNos.get(idNo)} 行身份证号重复`);
+      } else {
+        seenIdNos.set(idNo, it.rowIndex);
+      }
+    }
+  });
+
+  // 关键修复 2：与已报名数据（state.records）查重
+  const existingIds = new Set(
+    state.records.map(r => (r.idNumber || '').toUpperCase().trim()).filter(Boolean)
+  );
+  const existingIdMap = new Map();
+  state.records.forEach(r => {
+    const idNo = (r.idNumber || '').toUpperCase().trim();
+    if (idNo) existingIdMap.set(idNo, r);
+  });
+
+  items.forEach(it => {
+    const errors = it._errors ? [...it._errors] : [];
     const date = it.item.日期;
     const time = it.item.时间段;
+    const idNo = (it.item.身份证号 || '').toUpperCase().trim();
+    const phone = (it.item.联系方式 || '').trim();
+
     // 媒体身份：根据日期自动归属到 8.13 或 8.14 时段
     const isMediaDate = (date === '2026-08-13' || date === '2026-08-14');
     if (!isMediaDate) errors.push(`日期 ${date} 不在媒体可选日期（8.13/8.14）`);
@@ -2832,9 +2860,19 @@ function parseCsvBatch() {
       else if (v && !validateIdCheckCode(v)) errors.push(`${k} 校验码不通过`);
     });
 
+    // 关键修复 3：与已存在报名查重（身份证 + 手机）
+    if (idNo && existingIds.has(idNo)) {
+      const exist = existingIdMap.get(idNo);
+      errors.push(`该身份证号已报名：${exist.realName}（${exist.dateLabel} ${exist.time}）`);
+    }
+    if (phone && state.records.some(r => r.phone === phone)) {
+      const exist = state.records.find(r => r.phone === phone);
+      errors.push(`该手机号已报名：${exist.realName}（${exist.dateLabel} ${exist.time}）`);
+    }
+
     // 名额检查
     if (role && slot) {
-      const used = state.records.filter(r => r.roleId === roleId && r.slotIdx === role.slots.indexOf(slot)).length;
+      const used = state.records.filter(r => r.roleId === it.roleId && r.slotIdx === role.slots.indexOf(slot)).length;
       if (used >= slot.capacity) errors.push(`该时段已报满（${used}/${slot.capacity}）`);
     }
 
