@@ -2646,8 +2646,10 @@ function showSuccessQRModal(record) {
         '活动当天出示本二维码给工作人员扫码签到。截屏是唯一凭证，丢失将无法补办。'
       )
     ),
-    // 大 QR
-    el('div', { class: 'qr-box', style: 'display:inline-block;background:#fff;padding:12px;border-radius:10px;', html: svgStr }),
+    // 大 QR（用 img 标签 + data URL，兼容性比 inline SVG 好）
+    el('div', { class: 'qr-box', style: 'display:inline-block;background:#fff;padding:12px;border-radius:10px;' },
+      el('img', { src: dataUrl, alt: '签到二维码', style: 'display:block;width:200px;height:200px;' })
+    ),
     // 平台信息
     el('div', { style: 'margin-top:14px;font-size:14px;color:var(--text-2);' },
       el('div', { style: 'margin-bottom:4px;' }, platformText + ' · 平台ID：' + (r.platformId || '—'))
