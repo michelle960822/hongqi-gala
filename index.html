@@ -1088,10 +1088,6 @@
       <div class="toolbar">
         <div class="left" id="recordCount">共 0 条报名</div>
         <div class="right">
-          <button class="btn btn-ghost" id="btnSelectAll">☑️ 全选</button>
-          <button class="btn btn-ghost" id="btnSelectNone">☐ 取消</button>
-          <button class="btn btn-ghost" id="btnSelectInvert">↔️ 反选</button>
-          <button class="btn btn-primary" id="btnBatchPrint">🖨 批量打印胸卡</button>
           <button class="btn btn-ghost" id="btnExport">⬇️ 导出 CSV</button>
           <button class="btn btn-ghost" id="btnClearAll">🗑 清空全部</button>
         </div>
@@ -2009,6 +2005,9 @@ function el(tag, attrs = {}, ...children) {
       e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
     } else if (k === 'dataset') {
       for (const dk in attrs[k]) e.dataset[dk] = attrs[k][dk];
+    } else if (k === 'indeterminate' || k === 'checked' || k === 'disabled' || k === 'selected' || k === 'readOnly') {
+      // 这些是 DOM property，不能用 setAttribute
+      e[k] = !!attrs[k];
     } else {
       e.setAttribute(k, attrs[k]);
     }
@@ -3368,8 +3367,10 @@ function renderRecordList() {
 
   const tbl = el('table');
   const thead = el('thead');
-  // 全选复选框
-  const allChecked = state.records.every(r => state.selectedRecords.has(r.id));
+  // 全选复选框（带半选状态）
+  const selCount = state.records.filter(r => state.selectedRecords.has(r.id)).length;
+  const allChecked = selCount === state.records.length;
+  const someChecked = selCount > 0 && !allChecked;
   thead.appendChild(el('tr', {},
     el('th', { class: 'check-col' },
       el('input', {
@@ -3379,7 +3380,10 @@ function renderRecordList() {
           if (e.target.checked) state.records.forEach(r => state.selectedRecords.add(r.id));
           else state.selectedRecords.clear();
           renderRecordList();
-        }
+        },
+        onload: function() { this.indeterminate = someChecked; },
+        indeterminate: someChecked,
+        title: allChecked ? '取消全选' : '全选所有记录'
       })
     ),
     el('th', {}, '提交时间'),
@@ -4901,52 +4905,6 @@ function bindEvents() {
   });
   $('#btnExport').addEventListener('click', exportCSV);
   $('#btnClearAll').addEventListener('click', clearAllRecords);
-
-  // 报名列表工具栏：全选/取消/反选/批量打印胸卡
-  const btnSelectAll = document.getElementById('btnSelectAll');
-  if (btnSelectAll) btnSelectAll.addEventListener('click', () => {
-    state.records.forEach(r => state.selectedRecords.add(r.id));
-    renderRecordList();
-    updateBatchBar();
-    toast('已全选 ' + state.records.length + ' 条', 'success');
-  });
-  const btnSelectNone = document.getElementById('btnSelectNone');
-  if (btnSelectNone) btnSelectNone.addEventListener('click', () => {
-    state.selectedRecords.clear();
-    renderRecordList();
-    updateBatchBar();
-    toast('已取消全部选择', 'info');
-  });
-  const btnSelectInvert = document.getElementById('btnSelectInvert');
-  if (btnSelectInvert) btnSelectInvert.addEventListener('click', () => {
-    const next = new Set();
-    state.records.forEach(r => {
-      if (!state.selectedRecords.has(r.id)) next.add(r.id);
-    });
-    state.selectedRecords = next;
-    renderRecordList();
-    updateBatchBar();
-    toast('已反选，当前选中 ' + state.selectedRecords.size + ' 条', 'info');
-  });
-  const btnBatchPrint = document.getElementById('btnBatchPrint');
-  if (btnBatchPrint) btnBatchPrint.addEventListener('click', () => {
-    const sel = getSelectedRecords();
-    if (sel.length > 0) {
-      openBadgesPrint();
-    } else {
-      if (state.records.length === 0) {
-        toast('暂无报名可打印', 'warn');
-        return;
-      }
-      // 没选 → 默认全选后打印
-      if (confirm('当前没有勾选任何记录。\n\n点「确定」将打印全部 ' + state.records.length + ' 条胸卡。\n点「取消」返回手动选择。')) {
-        state.records.forEach(r => state.selectedRecords.add(r.id));
-        renderRecordList();
-        updateBatchBar();
-        setTimeout(() => openBadgesPrint(), 100);
-      }
-    }
-  });
 
   // 我的报名事件
   const btnMyLookup = document.getElementById('btnMyLookup');
