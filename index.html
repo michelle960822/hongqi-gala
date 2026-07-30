@@ -1915,15 +1915,17 @@ async function syncFromCloud(opts = {}) {
     }
   }
 
-  if (changed && !silent) {
-    // 重新渲染关键视图
+  // 关键修复：数据变了无论 silent 与否都要重新渲染（之前 silent:true 不渲染，UI 卡死！）
+  if (changed) {
     if (typeof renderRoleGrid === 'function') renderRoleGrid();
     if (typeof renderSlotList === 'function') renderSlotList();
     if (typeof renderMyAutoList === 'function') renderMyAutoList();
     if (typeof renderAdmin === 'function') renderAdmin();
     if (typeof renderDashboard === 'function') renderDashboard();
     if (typeof renderLiveCheckin === 'function') renderLiveCheckin();
-    console.log('[sync] 数据已更新');
+    if (!silent) {
+      console.log('[sync] 数据已更新');
+    }
   }
   return changed;
 }
