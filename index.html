@@ -3298,6 +3298,8 @@ function renderStats() {
 
 function renderRecordList() {
   const wrap = $('#recordList');
+  // 关键修复：先清空 wrap，否则多次渲染会重复显示！
+  wrap.innerHTML = '';
   $('#recordCount').textContent = `共 ${state.records.length} 条报名`;
 
   if (state.records.length === 0) {
