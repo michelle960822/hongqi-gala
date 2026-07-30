@@ -4586,8 +4586,10 @@ function renderMyAutoList() {
   const wrap = document.getElementById('myAutoList');
   if (!wrap) return;
   wrap.innerHTML = '';
-  const did = state.deviceId;
-  const myRecords = did ? getRecordsByDeviceId(did) : state.records;
+  // 隐私修复：确保 deviceId 已初始化（即使从未提交过，也要从 localStorage 拿到本机的 ID）
+  const did = state.deviceId || getDeviceId();
+  // 兜底：如果依然拿不到本机 ID（比如 localStorage 被禁用），直接返回空，绝不返回全部记录
+  const myRecords = did ? getRecordsByDeviceId(did) : [];
 
   if (myRecords.length === 0) {
     wrap.appendChild(el('div', { class: 'empty', style: 'padding:30px 20px;' },
@@ -5157,6 +5159,8 @@ function bindEvents() {
   }
   console.log('[testfill] 注入 25 条占满数据 + 18 条签到流水');
 })();
+// 隐私修复：页面一打开就初始化本机 deviceId，避免「我的报名」在没有 deviceId 时泄漏全部记录
+getDeviceId();
 loadRecords();
 loadVisitLog();
 loadPoints();
