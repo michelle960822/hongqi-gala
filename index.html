@@ -4342,9 +4342,16 @@ function renderDashboard() {
       const list = el('div', { class: 'log-list' });
       recent.forEach(v => {
         const r = getRecordById(v.rid);
+        // 签到人：真实姓名 + 平台ID 同时显示（后台管理需要实名核对）
+        const nameEl = el('span', {},
+          r ? r.realName : '未知',
+          r && r.platformId ? el('span', {
+            style: 'font-size:11px;color:var(--text-3);margin-left:4px;font-weight:normal;'
+          }, '· ' + r.platformId) : null
+        );
         list.appendChild(el('div', { class: 'log-item' },
           el('span', { class: 'badge-pt' }, v.point),
-          el('span', {}, r ? r.realName : '未知'),
+          nameEl,
           r ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, `${r.dateLabel} ${r.time}`) : null,
           v.operator ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, '@' + v.operator) : null,
           el('span', { class: 'ts' }, v.ts)
