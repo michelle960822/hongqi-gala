@@ -3171,10 +3171,25 @@ async function handleExcelFile(file) {
     const wb = XLSX.read(buf, { type: 'array' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     // 转为 AOA（二维数组），保留表头
-    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false });
+    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false, raw: true });
     if (!aoa || aoa.length < 2) {
       toast('Excel 文件为空或只有表头', 'warn');
       return;
+    }
+    // 关键修复：检测日期列（首列），把 Excel 序列号（如 46247）转成 YYYY-MM-DD
+    const dateColIdx = aoa[0].findIndex(h => String(h || '').trim() === '日期');
+    if (dateColIdx >= 0) {
+      for (let r = 1; r < aoa.length; r++) {
+        const v = aoa[r][dateColIdx];
+        if (typeof v === 'number' && v > 25569) {
+          // Excel date serial 转 YYYY-MM-DD（用 UTC 避免时区问题）
+          const d = new Date(Math.round((v - 25569) * 86400000));
+          const y = d.getUTCFullYear();
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(d.getUTCDate()).padStart(2, '0');
+          aoa[r][dateColIdx] = `${y}-${m}-${day}`;
+        }
+      }
     }
     // 转 CSV 字符串（标准 RFC 4180）
     const csv = aoa.map(row => row.map(cell => {
