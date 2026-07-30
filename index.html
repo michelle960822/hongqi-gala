@@ -3367,10 +3367,8 @@ function renderRecordList() {
 
   const tbl = el('table');
   const thead = el('thead');
-  // 全选复选框（带半选状态）
-  const selCount = state.records.filter(r => state.selectedRecords.has(r.id)).length;
-  const allChecked = selCount === state.records.length;
-  const someChecked = selCount > 0 && !allChecked;
+  // 全选复选框
+  const allChecked = state.records.length > 0 && state.records.every(r => state.selectedRecords.has(r.id));
   thead.appendChild(el('tr', {},
     el('th', { class: 'check-col' },
       el('input', {
@@ -3380,10 +3378,7 @@ function renderRecordList() {
           if (e.target.checked) state.records.forEach(r => state.selectedRecords.add(r.id));
           else state.selectedRecords.clear();
           renderRecordList();
-        },
-        onload: function() { this.indeterminate = someChecked; },
-        indeterminate: someChecked,
-        title: allChecked ? '取消全选' : '全选所有记录'
+        }
       })
     ),
     el('th', {}, '提交时间'),
@@ -3813,14 +3808,39 @@ function exportCSV() {
 }
 
 function clearAllRecords() {
-  if (state.records.length === 0) { toast('暂无数据', 'warn'); return; }
-  if (!confirm(`确认清空全部 ${state.records.length} 条报名记录？此操作不可恢复！`)) return;
+  if (state.records.length === 0 && state.visitLog.length === 0) { toast('暂无数据', 'warn'); return; }
+  if (!confirm(`确认清空全部 ${state.records.length} 条报名记录和 ${state.visitLog.length} 条签到流水？\n\n此操作会同时清空云端，所有设备 5 秒内同步。\n此操作不可恢复！`)) return;
+
+  // 1) 清本地
+  const recCount = state.records.length;
+  const logCount = state.visitLog.length;
   state.records = [];
+  state.visitLog = [];
+  state.selectedRecords.clear();
   saveRecords();
+  saveVisitLog();
   renderAdmin();
   renderRoleGrid();
   renderSlotList();
-  toast('已清空全部记录', 'success');
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderLiveCheckin === 'function') renderLiveCheckin();
+  toast(`已清空 ${recCount} 条报名 + ${logCount} 条签到`, 'success');
+
+  // 2) 清云端（用 admin wipe，需要 PIN 验证）
+  apiPost('/api/admin/wipe', { adminPin: '404112' })
+    .then(r => {
+      if (r && r.ok) {
+        console.log('[wipe] 云端已清空:', r.message);
+      } else {
+        toast('云端清空失败：' + (r && r.error ? r.error : '未知错误'), 'error');
+        // 失败时立即手动 sync 一次拉云端
+        if (typeof syncFromCloud === 'function') syncFromCloud({ silent: false });
+      }
+    })
+    .catch(e => {
+      console.error('[wipe] 云端清空异常:', e);
+      toast('云端清空异常：' + (e.message || '网络错误'), 'error');
+    });
 }
 
 /* ==================== 现场签到 ==================== */
