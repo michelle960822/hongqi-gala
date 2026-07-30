@@ -1095,6 +1095,21 @@
       <div id="recordList"></div>
     </div>
 
+    <!-- 2.5 签到流水（活动结束统一查看） -->
+    <div class="card collapsible collapsed" id="sec-visitlog">
+      <h2 class="card-head" data-target="visitlog-body">
+        <span>🕐 签到流水 <span style="font-size:12px;color:var(--text-3);font-weight:normal;">（活动结束导出用于复盘）</span></span>
+        <span class="card-toggle">▾</span>
+      </h2>
+      <div class="card-body" id="visitlog-body">
+        <div class="helper" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;">
+          <strong>📌 用途：</strong> 活动结束统一查看整体签到/体验情况。所有人签到流水按时间倒序展示。
+          <br>点击右上角「📤 导出体验详情」可一键下载 Excel/CSV 报告（含每人总签到次数、首次/末次签到时间、各点位明细）。
+        </div>
+        <div id="adminRecentVisitLog" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
     <!-- 3. 媒体批量导入（默认折叠） -->
     <div class="card collapsible collapsed" id="sec-import">
       <h2 class="card-head" data-target="import-body">
@@ -1178,10 +1193,7 @@
       <div id="dashHourChart" style="margin-top:10px;width:100%;"></div>
     </div>
 
-    <div class="card">
-      <h2>🆕 最近签到流水（最新 20 条）</h2>
-      <div id="dashRecent"></div>
-    </div>
+    <!-- 「最近签到流水」已移入报名管理，活动结束统一查看 -->
   </div>
 
   <!-- ==================== 现场签到视图 ==================== -->
@@ -1546,6 +1558,13 @@ function isStaffMode(mode) {
   const s = loadSession(mode);
   state.session = s;
   return !!s;
+
+// 管理员认证辅助：已登录报名管理、或本 session 内输过 PIN，即视为已认证
+function isAdminAuthed() {
+  if (typeof isStaffMode === 'function' && isStaffMode('admin')) return true;
+  if (sessionStorage.getItem('admin_unlocked_once') === '1') return true;
+  return false;
+}
 }
 
 function requireStaff(action = '操作', mode) {
@@ -2706,6 +2725,43 @@ function resetForm(clearSelection = true) {
 function renderAdmin() {
   renderStats();
   renderRecordList();
+  renderAdminVisitLog();
+}
+
+// 报名管理内的签到流水（活动结束统一查看）
+function renderAdminVisitLog() {
+  const wrap = document.getElementById('adminRecentVisitLog');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (state.visitLog.length === 0) {
+    wrap.appendChild(el('div', { class: 'empty' },
+      el('div', { class: 'ico' }, '📭'),
+      el('div', {}, '暂无签到数据')
+    ));
+    return;
+  }
+  const sorted = [...state.visitLog].sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+  const list = el('div', { class: 'log-list' });
+  sorted.forEach(v => {
+    const r = getRecordById(v.rid);
+    const nameEl = el('span', {},
+      r ? r.realName : '未知',
+      r && r.platformId ? el('span', {
+        style: 'font-size:11px;color:var(--text-3);margin-left:4px;font-weight:normal;'
+      }, '· ' + r.platformId) : null
+    );
+    list.appendChild(el('div', { class: 'log-item' },
+      el('span', { class: 'badge-pt' }, v.point || '—'),
+      nameEl,
+      r ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, `${r.dateLabel} ${r.time}`) : null,
+      v.operator ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, '@' + v.operator) : null,
+      el('span', { class: 'ts' }, v.ts || '')
+    ));
+  });
+  wrap.appendChild(list);
+  wrap.appendChild(el('div', { style: 'text-align:center;color:var(--text-3);font-size:12px;margin-top:8px;' },
+    '共 ' + state.visitLog.length + ' 条签到流水'
+  ));
 }
 
 /* ==================== 媒体批量导入 ==================== */
@@ -3723,6 +3779,18 @@ function buildBadgesHtml(records) {
 
 function exportVisitLogDetail() {
   // 导出"所有人体验情况详细表"——每个人一行，多体验点位的列展开为多次记录
+  // 权限校验：输入管理员 PIN 404112
+  if (!isAdminAuthed()) {
+    const pin = prompt('🔐 导出体验详情需要管理员权限\n\n请输入管理员 PIN（与报名管理一致）：');
+    if (pin === null) return; // 用户取消
+    if (pin !== '404112') {
+      toast('密码错误', 'error');
+      return;
+    }
+    // 验证通过，session 内存中标记为已认证（刷新后失效）
+    sessionStorage.setItem('admin_unlocked_once', '1');
+  }
+
   if (state.records.length === 0) { toast('暂无报名数据', 'warn'); return; }
   if (state.visitLog.length === 0) { toast('暂无签到数据', 'warn'); return; }
 
@@ -4367,37 +4435,7 @@ function renderDashboard() {
     }
   }
 
-  // 最近流水
-  const recent = [...allLogs].sort((a, b) => (b.ts || '').localeCompare(a.ts || '')).slice(0, 20);
-  const recentWrap = $('#dashRecent');
-  if (recentWrap) {
-    recentWrap.innerHTML = '';
-    if (recent.length === 0) {
-      recentWrap.appendChild(el('div', { class: 'empty', style: 'padding:30px;' },
-        el('div', { class: 'ico' }, '📭'),
-        el('div', {}, '暂无签到数据')));
-    } else {
-      const list = el('div', { class: 'log-list' });
-      recent.forEach(v => {
-        const r = getRecordById(v.rid);
-        // 签到人：真实姓名 + 平台ID 同时显示（后台管理需要实名核对）
-        const nameEl = el('span', {},
-          r ? r.realName : '未知',
-          r && r.platformId ? el('span', {
-            style: 'font-size:11px;color:var(--text-3);margin-left:4px;font-weight:normal;'
-          }, '· ' + r.platformId) : null
-        );
-        list.appendChild(el('div', { class: 'log-item' },
-          el('span', { class: 'badge-pt' }, v.point),
-          nameEl,
-          r ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, `${r.dateLabel} ${r.time}`) : null,
-          v.operator ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, '@' + v.operator) : null,
-          el('span', { class: 'ts' }, v.ts)
-        ));
-      });
-      recentWrap.appendChild(list);
-    }
-  }
+  // 「最近签到流水」已移入报名管理（活动结束统一查看），这里不再渲染
 }
 
 function buildBarChart(data, opts = {}) {
