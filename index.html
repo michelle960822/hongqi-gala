@@ -2265,34 +2265,20 @@ function renderForm() {
   compSection.appendChild(compContainers);
   updateCompanionUI(role);
 
-  // 隐私告知 + 同意勾选（《个人信息保护法》要求）
+  // 隐私告知 + 同意勾选（极简风格，不张扬）
   const consentBox = el('div', {
-    style: 'margin-top:18px;padding:14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;'
+    style: 'margin-top:16px;padding-top:12px;border-top:1px solid var(--border);'
   },
-    el('div', { style: 'font-size:13px;color:#0c4a6e;line-height:1.7;margin-bottom:10px;' },
-      el('strong', {}, '📋 个人信息收集告知'),
-      el('br'),
-      '为完成本次活动报名与现场签到，我们将收集你的',
-      el('strong', {}, '真实姓名、身份证号、联系方式'),
-      '等个人信息。',
-      el('br'),
-      '• 仅用于',
-      el('strong', {}, '「红旗粉丝家年华」活动签到与身份核验'),
-      '；',
-      el('br'),
-      '• 活动结束后 ',
-      el('strong', {}, '30 天自动清除'),
-      '，不会用于其他用途或共享给第三方；',
-      el('br'),
-      '• 后台默认 ',
-      el('strong', {}, '脱敏展示'),
-      '（身份证 110101********1234），完整数据导出需管理员 PIN 并记录审计日志。'
+    el('div', { style: 'font-size:11px;color:var(--text-3);line-height:1.6;margin-bottom:8px;' },
+      '🔒 ',
+      el('strong', {}, '信息已加密保护'),
+      '，活动结束后 30 天自动清除，仅用于本次签到。'
     ),
     el('label', {
-      style: 'display:flex;align-items:center;gap:8px;font-size:14px;color:#0c4a6e;cursor:pointer;font-weight:500;'
+      style: 'display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);cursor:pointer;'
     },
-      el('input', { id: 'consentChk', type: 'checkbox', style: 'width:18px;height:18px;cursor:pointer;' }),
-      '我已阅读并同意上述个人信息处理说明'
+      el('input', { id: 'consentChk', type: 'checkbox', style: 'width:16px;height:16px;cursor:pointer;margin:0;' }),
+      '我已阅读并同意'
     )
   );
   area.appendChild(consentBox);
@@ -2546,7 +2532,7 @@ function submitForm() {
   // 隐私告知同意校验（《个人信息保护法》要求）
   const consentEl = document.getElementById('consentChk');
   if (consentEl && !consentEl.checked) {
-    toast('请勾选「同意个人信息处理说明」后再提交', 'error');
+    toast('请勾选「我已阅读并同意」后再提交', 'error');
     if (consentEl) consentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     btn.disabled = false;
     btn.textContent = oldText;
