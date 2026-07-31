@@ -3865,10 +3865,14 @@ function exportVisitLogDetail() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `体验详情_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // 给浏览器一点时间真的开始下载，再清理（Safari/部分浏览器对立即 revoke 很敏感）
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 200);
   toast(`已导出 ${rows.length} 条体验详情`, 'success');
 }
 
@@ -3986,10 +3990,13 @@ async function exportFullWithPin() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `红旗粉丝家年华报名_完整_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 200);
   toast(`已导出 ${rows.length} 条完整数据（含审计日志）`, 'success');
 }
 
