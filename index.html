@@ -1101,12 +1101,15 @@
     <div class="card collapsible collapsed" id="sec-visitlog">
       <h2 class="card-head" data-target="visitlog-body">
         <span>🕐 签到流水 <span style="font-size:12px;color:var(--text-3);font-weight:normal;">（活动结束导出用于复盘）</span></span>
-        <span class="card-toggle">▾</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-ghost" id="btnDashExportInline" style="font-size:12px;padding:5px 10px;">📤 导出体验详情</button>
+          <span class="card-toggle">▾</span>
+        </span>
       </h2>
       <div class="card-body" id="visitlog-body">
         <div class="helper" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;">
           <strong>📌 用途：</strong> 活动结束统一查看整体签到/体验情况。所有人签到流水按时间倒序展示。
-          <br>点击右上角「📤 导出体验详情」可一键下载 Excel/CSV 报告（含每人总签到次数、首次/末次签到时间、各点位明细）。
+          <br>点上方「📤 导出体验详情」一键下载 Excel/CSV 报告（含每人总签到次数、首次/末次签到时间、各点位明细）。
         </div>
         <div id="adminRecentVisitLog" style="margin-top:12px;"></div>
       </div>
@@ -5061,6 +5064,8 @@ function bindEvents() {
   $('#btnExportFull').addEventListener('click', exportFullWithPin);
   $('#btnCleanupExpired').addEventListener('click', cleanupExpired);
   $('#btnClearAll').addEventListener('click', clearAllRecords);
+  const btnDashExportInline = document.getElementById('btnDashExportInline');
+  if (btnDashExportInline) btnDashExportInline.addEventListener('click', exportVisitLogDetail);
 
   // 我的报名事件
   const btnMyLookup = document.getElementById('btnMyLookup');
