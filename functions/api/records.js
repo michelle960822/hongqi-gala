@@ -56,13 +56,13 @@ async function listRecords(env, request) {
         phone: r.phone_masked || maskPhone(r.phone),
       }));
     } else {
-      // 明文：解密 id_number / phone
+      // 明文：解密 id_number / phone（async 操作必须用 Promise.all）
       const aesKey = await getAesKey(env);
-      records = records.map(r => ({
+      records = await Promise.all(records.map(async r => ({
         ...r,
-        id_number: safeDecrypt(r.id_number, aesKey),
-        phone: safeDecrypt(r.phone, aesKey),
-      }));
+        id_number: await safeDecrypt(r.id_number, aesKey),
+        phone: await safeDecrypt(r.phone, aesKey),
+      })));
       await logAccess(env, request, 'records_full_export', { count: records.length });
     }
 
