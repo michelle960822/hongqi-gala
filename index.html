@@ -1088,7 +1088,9 @@
       <div class="toolbar">
         <div class="left" id="recordCount">共 0 条报名</div>
         <div class="right">
-          <button class="btn btn-ghost" id="btnExport">⬇️ 导出 CSV</button>
+          <button class="btn btn-ghost" id="btnExport">⬇️ 导出 CSV（脱敏）</button>
+          <button class="btn btn-ghost" id="btnExportFull" title="需管理员 PIN，导出含身份证/手机号完整数据">🔐 导出完整数据</button>
+          <button class="btn btn-ghost" id="btnCleanupExpired" title="清理 retention_until 已过期的记录">🧹 清理过期</button>
           <button class="btn btn-ghost" id="btnClearAll">🗑 清空全部</button>
         </div>
       </div>
@@ -2262,6 +2264,38 @@ function renderForm() {
   const compContainers = el('div', { id: 'compContainers' });
   compSection.appendChild(compContainers);
   updateCompanionUI(role);
+
+  // 隐私告知 + 同意勾选（《个人信息保护法》要求）
+  const consentBox = el('div', {
+    style: 'margin-top:18px;padding:14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;'
+  },
+    el('div', { style: 'font-size:13px;color:#0c4a6e;line-height:1.7;margin-bottom:10px;' },
+      el('strong', {}, '📋 个人信息收集告知'),
+      el('br'),
+      '为完成本次活动报名与现场签到，我们将收集你的',
+      el('strong', {}, '真实姓名、身份证号、联系方式'),
+      '等个人信息。',
+      el('br'),
+      '• 仅用于',
+      el('strong', {}, '「红旗粉丝家年华」活动签到与身份核验'),
+      '；',
+      el('br'),
+      '• 活动结束后 ',
+      el('strong', {}, '30 天自动清除'),
+      '，不会用于其他用途或共享给第三方；',
+      el('br'),
+      '• 后台默认 ',
+      el('strong', {}, '脱敏展示'),
+      '（身份证 110101********1234），完整数据导出需管理员 PIN 并记录审计日志。'
+    ),
+    el('label', {
+      style: 'display:flex;align-items:center;gap:8px;font-size:14px;color:#0c4a6e;cursor:pointer;font-weight:500;'
+    },
+      el('input', { id: 'consentChk', type: 'checkbox', style: 'width:18px;height:18px;cursor:pointer;' }),
+      '我已阅读并同意上述个人信息处理说明'
+    )
+  );
+  area.appendChild(consentBox);
 }
 
 function updateCompanionUI(role) {
@@ -2504,6 +2538,16 @@ function submitForm() {
     toast(errors[0], 'error');
     const firstErr = document.querySelector('#formArea .error, #formArea .field-hint.error');
     if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    btn.disabled = false;
+    btn.textContent = oldText;
+    return;
+  }
+
+  // 隐私告知同意校验（《个人信息保护法》要求）
+  const consentEl = document.getElementById('consentChk');
+  if (consentEl && !consentEl.checked) {
+    toast('请勾选「同意个人信息处理说明」后再提交', 'error');
+    if (consentEl) consentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     btn.disabled = false;
     btn.textContent = oldText;
     return;
@@ -3911,6 +3955,70 @@ function clearAllRecords() {
     });
 }
 
+/* ==================== 隐私：导出完整数据（需 PIN） ==================== */
+async function exportFullWithPin() {
+  if (state.records.length === 0) { toast('暂无数据可导出', 'warn'); return; }
+  const pin = prompt('导出含身份证 / 手机号的完整数据，需输入管理员 PIN：');
+  if (!pin) return;
+  if (pin !== (getPin && getPin('admin'))) {
+    toast('PIN 不正确', 'error');
+    return;
+  }
+
+  // 从云端拉明文数据（带审计日志）
+  const resp = await fetch('/api/records?full=1&admin_pin=' + encodeURIComponent(pin)).then(r => r.json()).catch(() => null);
+  if (!resp || !Array.isArray(resp.records)) {
+    toast('导出失败：' + (resp && resp.error ? resp.error : '网络错误'), 'error');
+    return;
+  }
+
+  const headers = ['提交时间', '身份', '日期', '时间段', '类别', '平台', '平台ID', '粉丝数(万)', '真实姓名', '身份证号', '联系方式', '随行人数', '随行1姓名', '随行1身份证', '随行1电话', '随行2姓名', '随行2身份证', '随行2电话'];
+  const rows = resp.records.map(r => {
+    let companions = [];
+    try { companions = r.companions ? JSON.parse(r.companions) : []; } catch (_) { companions = []; }
+    const c1 = companions[0] || {};
+    const c2 = companions[1] || {};
+    const platformText = r.platform ? r.platform.split('|').filter(Boolean).join('、') : '';
+    return [
+      r.created_at, r.role_name, r.date_label, r.time, r.category || '',
+      platformText, r.platform_id || '', r.followers || '',
+      r.real_name, r.id_number, r.phone, r.comp_count || 0,
+      c1.name || '', c1.idNumber || '', c1.phone || '',
+      c2.name || '', c2.idNumber || '', c2.phone || '',
+    ];
+  });
+  const csv = [headers, ...rows].map(row => row.map(cell => {
+    const s = String(cell == null ? '' : cell);
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  }).join(',')).join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `红旗粉丝家年华报名_完整_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`已导出 ${rows.length} 条完整数据（含审计日志）`, 'success');
+}
+
+/* ==================== 隐私：清理过期数据（retention_until < 今天） ==================== */
+async function cleanupExpired() {
+  if (!confirm('清理已过期（retention_until 早于今天）的报名记录与关联签到流水？\n\n该操作不可恢复，符合《个人信息保护法》留存期限要求。')) return;
+  const resp = await apiPost('/api/admin/wipe', { adminPin: '404112', mode: 'expired' });
+  if (resp && resp.ok) {
+    toast(resp.message || `已清理 ${resp.deleted || 0} 条`, 'success');
+    // 触发同步刷新本地
+    if (typeof syncFromCloud === 'function') syncFromCloud({ silent: false });
+  } else {
+    toast('清理失败：' + (resp && resp.error ? resp.error : '未知错误'), 'error');
+  }
+}
+
 /* ==================== 现场签到 ==================== */
 function renderCheckinView() {
   // 渲染点位 chip 网格
@@ -4964,6 +5072,8 @@ function bindEvents() {
     if (confirm('确认重置当前填写的内容？')) resetForm(true);
   });
   $('#btnExport').addEventListener('click', exportCSV);
+  $('#btnExportFull').addEventListener('click', exportFullWithPin);
+  $('#btnCleanupExpired').addEventListener('click', cleanupExpired);
   $('#btnClearAll').addEventListener('click', clearAllRecords);
 
   // 我的报名事件
