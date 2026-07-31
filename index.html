@@ -1561,13 +1561,13 @@ function isStaffMode(mode) {
   const s = loadSession(mode);
   state.session = s;
   return !!s;
+}
 
 // 管理员认证辅助：已登录报名管理、或本 session 内输过 PIN，即视为已认证
 function isAdminAuthed() {
   if (typeof isStaffMode === 'function' && isStaffMode('admin')) return true;
   if (sessionStorage.getItem('admin_unlocked_once') === '1') return true;
   return false;
-}
 }
 
 function requireStaff(action = '操作', mode) {
