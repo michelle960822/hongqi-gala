@@ -1,1 +1,82 @@
-Ly8g5Li05pe2IGRlYnVn77ya55u05o6lIHJvdW5kLXRyaXAg5rWL6K+V5Yqg5a+GL+ino+WvhgpleHBvcnQgYXN5bmMgZnVuY3Rpb24gb25SZXF1ZXN0R2V0KGNvbnRleHQpIHsKICBjb25zdCB7IGVudiB9ID0gY29udGV4dDsKICBjb25zdCB1cmwgPSBuZXcgVVJMKGNvbnRleHQucmVxdWVzdC51cmwpOwogIGlmICh1cmwuc2VhcmNoUGFyYW1zLmdldCgncGluJykgIT09ICc0MDQxMTInKSByZXR1cm4ganNvbih7IGVycm9yOiAndW5hdXRob3JpemVkJyB9LCA0MDEpOwoKICBjb25zdCByZXN1bHRzID0gW107CgogIC8vIFRlc3QgMTog55So56Gs57yW56CBIGtleSDliqDlr4bkuIDkuKrlm7rlrprlrZfnrKbkuLLvvIzlho3op6Plr4YKICB0cnkgewogICAgY29uc3Qgc2VjcmV0ID0gJ05Qa0pHdVJVTE5ETHl2bXpPQ0RoSXJTNkRwdytmOHRHNUd3NmVpRHhRTlk9JzsKICAgIGNvbnN0IHJhdyA9IFVpbnQ4QXJyYXkuZnJvbShhdG9iKHNlY3JldCksIGMgPT4gYy5jaGFyQ29kZUF0KDApKTsKICAgIGNvbnN0IGtleUJ5dGVzID0gbmV3IFVpbnQ4QXJyYXkoMzIpOwogICAga2V5Qnl0ZXMuc2V0KHJhdy5zbGljZSgwLCAzMikpOwogICAgY29uc3Qga2V5ID0gYXdhaXQgY3J5cHRvLnN1YnRsZS5pbXBvcnRLZXkoJ3JhdycsIGtleUJ5dGVzLCB7IG5hbWU6ICdBRVMtR0NNJyB9LCBmYWxzZSwgWydlbmNyeXB0JywgJ2RlY3J5cHQnXSk7CgogICAgY29uc3QgcGxhaW4gPSAnMjIwMTIyMTk5MzAyMTAwNzE2JzsKICAgIGNvbnN0IGl2ID0gY3J5cHRvLmdldFJhbmRvbVZhbHVlcyhuZXcgVWludDhBcnJheSgxMikpOwogICAgY29uc3QgZW5jID0gbmV3IFRleHRFbmNvZGVyKCkuZW5jb2RlKHBsYWluKTsKICAgIGNvbnN0IGNpcGhlckJ1ZiA9IGF3YWl0IGNyeXB0by5zdWJ0bGUuZW5jcnlwdCh7IG5hbWU6ICdBRVMtR0NNJywgaXYgfSwga2V5LCBlbmMpOwogICAgY29uc3QgY29tYmluZWQgPSBuZXcgVWludDhBcnJheShpdi5sZW5ndGggKyBjaXBoZXJCdWYuYnl0ZUxlbmd0aCk7CiAgICBjb21iaW5lZC5zZXQoaXYsIDApOwogICAgY29tYmluZWQuc2V0KG5ldyBVaW50OEFycmF5KGNpcGhlckJ1ZiksIGl2Lmxlbmd0aCk7CiAgICBsZXQgYmluID0gJyc7CiAgICBmb3IgKGxldCBpID0gMDsgaSA8IGNvbWJpbmVkLmxlbmd0aDsgaSsrKSBiaW4gKz0gU3RyaW5nLmZyb21DaGFyQ29kZShjb21iaW5lZFtpXSk7CiAgICBjb25zdCBjaXBoZXJCNjQgPSBidG9hKGJpbik7CgogICAgLy8gRGVjcnlwdAogICAgY29uc3QgZGVjb2RlZCA9IFVpbnQ4QXJyYXkuZnJvbShhdG9iKGNpcGhlckI2NCksIGMgPT4gYy5jaGFyQ29kZUF0KDApKTsKICAgIGNvbnN0IGl2MiA9IGRlY29kZWQuc2xpY2UoMCwgMTIpOwogICAgY29uc3QgY2lwaGVyMiA9IGRlY29kZWQuc2xpY2UoMTIpOwogICAgY29uc3QgcGxhaW5CdWYgPSBhd2FpdCBjcnlwdG8uc3VidGxlLmRlY3J5cHQoeyBuYW1lOiAnQUVTLUdDTScsIGl2OiBpdjIgfSwga2V5LCBjaXBoZXIyKTsKICAgIGNvbnN0IGRlY29kZWRQbGFpbiA9IG5ldyBUZXh0RGVjb2RlcigpLmRlY29kZShwbGFpbkJ1Zik7CgogICAgcmVzdWx0cy5wdXNoKHsgdGVzdDogJ3JvdW5kX3RyaXBfc2FtZV9pc29sYXRlJywgY2lwaGVyOiBjaXBoZXJCNjQuc2xpY2UoMCwgMzApICsgJy4uLicsIGRlY29kZWQ6IGRlY29kZWRQbGFpbiwgbWF0Y2g6IGRlY29kZWRQbGFpbiA9PT0gcGxhaW4gfSk7CiAgfSBjYXRjaCAoZSkgewogICAgcmVzdWx0cy5wdXNoKHsgdGVzdDogJ3JvdW5kX3RyaXBfc2FtZV9pc29sYXRlJywgZXJyb3I6IGUubWVzc2FnZSB9KTsKICB9CgogIC8vIFRlc3QgMjog5LuOIERCIOWPluWvhuaWh++8jOeUqOehrOe8lueggSBrZXkg6Kej5a+GCiAgdHJ5IHsKICAgIGNvbnN0IHsgREIgfSA9IGVudjsKICAgIGlmICghREIpIHsgcmVzdWx0cy5wdXNoKHsgdGVzdDogJ2RiX2RlY3J5cHQnLCBlcnJvcjogJ25vIERCJyB9KTsgfQogICAgZWxzZSB7CiAgICAgIGNvbnN0IHJvdyA9IGF3YWl0IERCLnByZXBhcmUoJ1NFTEVDVCBpZF9udW1iZXIgRlJPTSByZWNvcmRzIFdIRVJFIGlkX251bWJlciBJUyBOT1QgTlVMTCBMSU1JVCAxJykuZmlyc3QoKTsKICAgICAgY29uc3Qgc3RvcmVkQ2lwaGVyID0gcm93ID8gcm93LmlkX251bWJlciA6IG51bGw7CiAgICAgIHJlc3VsdHMucHVzaCh7IHRlc3Q6ICdkYl9kZWNyeXB0Jywgc3RvcmVkX3ZhbHVlX3R5cGU6IHR5cGVvZiBzdG9yZWRDaXBoZXIsIHN0b3JlZF92YWx1ZV9sZW46IHN0b3JlZENpcGhlciA/IHN0b3JlZENpcGhlci5sZW5ndGggOiAwLCBzYW1wbGU6IHN0b3JlZENpcGhlciA/IHN0b3JlZENpcGhlci5zbGljZSgwLCAzMCkgOiBudWxsIH0pOwoKICAgICAgaWYgKHN0b3JlZENpcGhlciAmJiB0eXBlb2Ygc3RvcmVkQ2lwaGVyID09PSAnc3RyaW5nJyAmJiBzdG9yZWRDaXBoZXIubGVuZ3RoID4gMTApIHsKICAgICAgICB0cnkgewogICAgICAgICAgY29uc3Qgc2VjcmV0ID0gJ05Qa0pHdVJVTE5ETHl2bXpPQ0RoSXJTNkRwdytmOHRHNUd3NmVpRHhRTlk9JzsKICAgICAgICAgIGNvbnN0IHJhdyA9IFVpbnQ4QXJyYXkuZnJvbShhdG9iKHNlY3JldCksIGMgPT4gYy5jaGFyQ29kZUF0KDApKTsKICAgICAgICAgIGNvbnN0IGtleUJ5dGVzID0gbmV3IFVpbnQ4QXJyYXkoMzIpOwogICAgICAgICAga2V5Qnl0ZXMuc2V0KHJhdy5zbGljZSgwLCAzMikpOwogICAgICAgICAgY29uc3Qga2V5ID0gYXdhaXQgY3J5cHRvLnN1YnRsZS5pbXBvcnRLZXkoJ3JhdycsIGtleUJ5dGVzLCB7IG5hbWU6ICdBRVMtR0NNJyB9LCBmYWxzZSwgWydlbmNyeXB0JywgJ2RlY3J5cHQnXSk7CgogICAgICAgICAgY29uc3QgZGVjb2RlZCA9IFVpbnQ4QXJyYXkuZnJvbShhdG9iKHN0b3JlZENpcGhlciksIGMgPT4gYy5jaGFyQ29kZUF0KDApKTsKICAgICAgICAgIHJlc3VsdHMucHVzaCh7IHRlc3Q6ICdkYl9kZWNyeXB0JywgZGVjb2RlZF9sZW46IGRlY29kZWQubGVuZ3RoIH0pOwoKICAgICAgICAgIGNvbnN0IGl2MiA9IGRlY29kZWQuc2xpY2UoMCwgMTIpOwogICAgICAgICAgY29uc3QgY2lwaGVyMiA9IGRlY29kZWQuc2xpY2UoMTIpOwogICAgICAgICAgY29uc3QgcGxhaW5CdWYgPSBhd2FpdCBjcnlwdG8uc3VidGxlLmRlY3J5cHQoeyBuYW1lOiAnQUVTLUdDTScsIGl2OiBpdjIgfSwga2V5LCBjaXBoZXIyKTsKICAgICAgICAgIGNvbnN0IHBsYWluID0gbmV3IFRleHREZWNvZGVyKCkuZGVjb2RlKHBsYWluQnVmKTsKICAgICAgICAgIHJlc3VsdHMucHVzaCh7IHRlc3Q6ICdkYl9kZWNyeXB0JywgcGxhaW4gfSk7CiAgICAgICAgfSBjYXRjaCAoZSkgewogICAgICAgICAgcmVzdWx0cy5wdXNoKHsgdGVzdDogJ2RiX2RlY3J5cHRfaW5uZXInLCBlcnJvcjogZS5tZXNzYWdlIH0pOwogICAgICAgIH0KICAgICAgfQogICAgfQogIH0gY2F0Y2ggKGUpIHsKICAgIHJlc3VsdHMucHVzaCh7IHRlc3Q6ICdkYl9kZWNyeXB0X291dGVyJywgZXJyb3I6IGUubWVzc2FnZSB9KTsKICB9CgogIHJldHVybiBqc29uKHsgcmVzdWx0cyB9LCAyMDApOwp9CgpmdW5jdGlvbiBqc29uKG9iaiwgc3RhdHVzID0gMjAwKSB7CiAgcmV0dXJuIG5ldyBSZXNwb25zZShKU09OLnN0cmluZ2lmeShvYmopLCB7CiAgICBzdGF0dXMsCiAgICBoZWFkZXJzOiB7ICdDb250ZW50LVR5cGUnOiAnYXBwbGljYXRpb24vanNvbjsgY2hhcnNldD11dGYtOCcsICdBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW4nOiAnKicgfSwKICB9KTsKfQ==
+// 临时 debug：直接 round-trip 测试加密/解密
+export async function onRequestGet(context) {
+  const { env } = context;
+  const url = new URL(context.request.url);
+  if (url.searchParams.get('pin') !== '404112') return json({ error: 'unauthorized' }, 401);
+
+  const results = [];
+
+  // Test 1: 用硬编码 key 加密一个固定字符串，再解密
+  try {
+    const secret = 'NPkJGuRULNDLyvmzOCDhIrS6Dpw+f8tG5Gw6eiDxQNY=';
+    const raw = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+    const keyBytes = new Uint8Array(32);
+    keyBytes.set(raw.slice(0, 32));
+    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+
+    const plain = '220122199302100716';
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder().encode(plain);
+    const cipherBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc);
+    const combined = new Uint8Array(iv.length + cipherBuf.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(cipherBuf), iv.length);
+    let bin = '';
+    for (let i = 0; i < combined.length; i++) bin += String.fromCharCode(combined[i]);
+    const cipherB64 = btoa(bin);
+
+    // Decrypt
+    const decoded = Uint8Array.from(atob(cipherB64), c => c.charCodeAt(0));
+    const iv2 = decoded.slice(0, 12);
+    const cipher2 = decoded.slice(12);
+    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv2 }, key, cipher2);
+    const decodedPlain = new TextDecoder().decode(plainBuf);
+
+    results.push({ test: 'round_trip_same_isolate', cipher: cipherB64.slice(0, 30) + '...', decoded: decodedPlain, match: decodedPlain === plain });
+  } catch (e) {
+    results.push({ test: 'round_trip_same_isolate', error: e.message });
+  }
+
+  // Test 2: 从 DB 取密文，用硬编码 key 解密
+  try {
+    const { DB } = env;
+    if (!DB) { results.push({ test: 'db_decrypt', error: 'no DB' }); }
+    else {
+      const row = await DB.prepare('SELECT id_number FROM records WHERE id_number IS NOT NULL LIMIT 1').first();
+      const storedCipher = row ? row.id_number : null;
+      results.push({ test: 'db_decrypt', stored_value_type: typeof storedCipher, stored_value_len: storedCipher ? storedCipher.length : 0, sample: storedCipher ? storedCipher.slice(0, 30) : null });
+
+      if (storedCipher && typeof storedCipher === 'string' && storedCipher.length > 10) {
+        try {
+          const secret = 'NPkJGuRULNDLyvmzOCDhIrS6Dpw+f8tG5Gw6eiDxQNY=';
+          const raw = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+          const keyBytes = new Uint8Array(32);
+          keyBytes.set(raw.slice(0, 32));
+          const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+
+          const decoded = Uint8Array.from(atob(storedCipher), c => c.charCodeAt(0));
+          results.push({ test: 'db_decrypt', decoded_len: decoded.length });
+
+          const iv2 = decoded.slice(0, 12);
+          const cipher2 = decoded.slice(12);
+          const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv2 }, key, cipher2);
+          const plain = new TextDecoder().decode(plainBuf);
+          results.push({ test: 'db_decrypt', plain });
+        } catch (e) {
+          results.push({ test: 'db_decrypt_inner', error: e.message });
+        }
+      }
+    }
+  } catch (e) {
+    results.push({ test: 'db_decrypt_outer', error: e.message });
+  }
+
+  return json({ results }, 200);
+}
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' },
+  });
+}

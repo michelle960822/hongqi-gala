@@ -1,1 +1,88 @@
-Ly8gUGFnZXMgRnVuY3Rpb246IFBPU1QgL2FwaS9hZG1pbi93aXBlCi8vIOaooeW8j++8mgovLyAgIHsgbW9kZTogJ2FsbCcsICAgICBhZG1pblBpbiB9ICDihpIg5riF56m65YWo6YOo5pWw5o2u77yI5bqU5oCl77yJCi8vICAgeyBtb2RlOiAnZXhwaXJlZCcsIGFkbWluUGluIH0gIOKGkiDmuIXnkIYgcmV0ZW50aW9uX3VudGlsIDwg5LuK5aSp55qE6K6w5b2V77yI5ZCr5YWz6IGUIHZpc2l0X2xvZ++8iQoKZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIG9uUmVxdWVzdFBvc3QoY29udGV4dCkgewogIGNvbnN0IHsgZW52LCByZXF1ZXN0IH0gPSBjb250ZXh0OwogIGlmICghZW52LkRCKSByZXR1cm4ganNvbih7IGVycm9yOiAnREIgYmluZGluZyBtaXNzaW5nJyB9LCA1MDApOwoKICBjb25zdCBib2R5ID0gYXdhaXQgcmVxdWVzdC5qc29uKCkuY2F0Y2goKCkgPT4gKHt9KSk7CiAgY29uc3QgcGluID0gYm9keS5hZG1pblBpbiB8fCAnJzsKICBpZiAocGluICE9PSAnNDA0MTEyJykgcmV0dXJuIGpzb24oeyBlcnJvcjogJ3VuYXV0aG9yaXplZCcgfSwgNDAxKTsKCiAgLy8g5YWc5bqV77ya5L+d6K+BIGFjY2Vzc19sb2cg6KGo5a2Y5Zyo77yI5Y2z5L6/IHJlY29yZHMuanMg6L+Y5rKh6KKr6LCD55So6L+H77yJCiAgdHJ5IHsKICAgIGF3YWl0IGVudi5EQi5wcmVwYXJlKGAKICAgICAgQ1JFQVRFIFRBQkxFIElGIE5PVCBFWElTVFMgYWNjZXNzX2xvZyAoCiAgICAgICAgaWQgVEVYVCBQUklNQVJZIEtFWSwgYWN0aW9uIFRFWFQgTk9UIE5VTEwsIGFjdG9yX2lwIFRFWFQsIGFjdG9yX3VhIFRFWFQsIG1ldGEgVEVYVCwgdGltZSBURVhUIE5PVCBOVUxMCiAgICAgICkKICAgIGApLnJ1bigpOwogIH0gY2F0Y2ggKGUpIHt9CgogIGNvbnN0IG1vZGUgPSBib2R5Lm1vZGUgfHwgJ2FsbCc7CgogIC8vIOWGmeiuv+mXruaXpeW/lwogIGNvbnN0IGlwID0gKHJlcXVlc3QuaGVhZGVycy5nZXQoJ2NmLWNvbm5lY3RpbmctaXAnKSB8fCByZXF1ZXN0LmhlYWRlcnMuZ2V0KCd4LWZvcndhcmRlZC1mb3InKSB8fCAnJykuc2xpY2UoMCwgNjQpOwogIGNvbnN0IHVhID0gKHJlcXVlc3QuaGVhZGVycy5nZXQoJ3VzZXItYWdlbnQnKSB8fCAnJykuc2xpY2UoMCwgMjU2KTsKICBjb25zdCBsb2dJZCA9ICdhbF8nICsgRGF0ZS5ub3coKSArICdfJyArIE1hdGgucmFuZG9tKCkudG9TdHJpbmcoMzYpLnNsaWNlKDIsIDgpOwogIGNvbnN0IGxvZ0FjdGlvbiA9IG1vZGUgPT09ICdleHBpcmVkJyA/ICdhZG1pbl9jbGVhbnVwX2V4cGlyZWQnIDogJ2FkbWluX3dpcGVfYWxsJzsKCiAgdHJ5IHsKICAgIGlmIChtb2RlID09PSAnZXhwaXJlZCcpIHsKICAgICAgY29uc3QgdG9kYXkgPSBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCkuc2xpY2UoMCwgMTApOwogICAgICAvLyDlhYjliKDlhbPogZTmtYHmsLQKICAgICAgY29uc3QgZXhwaXJlZFJlY29yZHMgPSBhd2FpdCBlbnYuREIucHJlcGFyZSgKICAgICAgICAnU0VMRUNUIGlkIEZST00gcmVjb3JkcyBXSEVSRSByZXRlbnRpb25fdW50aWwgSVMgTk9UIE5VTEwgQU5EIHJldGVudGlvbl91bnRpbCA8ID8nCiAgICAgICkuYmluZCh0b2RheSkuYWxsKCk7CiAgICAgIGNvbnN0IGV4cGlyZWRJZHMgPSAoZXhwaXJlZFJlY29yZHMucmVzdWx0cyB8fCBbXSkubWFwKHIgPT4gci5pZCk7CgogICAgICBpZiAoZXhwaXJlZElkcy5sZW5ndGggPT09IDApIHsKICAgICAgICBhd2FpdCB3cml0ZUxvZyhlbnYsIGxvZ0lkLCBsb2dBY3Rpb24sIGlwLCB1YSwgeyBkZWxldGVkOiAwLCB0b2RheSB9KTsKICAgICAgICByZXR1cm4ganNvbih7IG9rOiB0cnVlLCBkZWxldGVkOiAwLCBtZXNzYWdlOiAn5rKh5pyJ6ZyA6KaB5riF55CG55qE6L+H5pyf5pWw5o2uJyB9KTsKICAgICAgfQoKICAgICAgLy8g5YiG5om55Yig6Zmk5Y2g5L2NID8g55SoIElOICguLi4pCiAgICAgIGNvbnN0IHBsYWNlaG9sZGVycyA9IGV4cGlyZWRJZHMubWFwKCgpID0+ICc/Jykuam9pbignLCcpOwogICAgICBhd2FpdCBlbnYuREIucHJlcGFyZShgREVMRVRFIEZST00gdmlzaXRfbG9nIFdIRVJFIHJpZCBJTiAoJHtwbGFjZWhvbGRlcnN9KWApLmJpbmQoLi4uZXhwaXJlZElkcykucnVuKCk7CiAgICAgIGNvbnN0IGRlbFJlcyA9IGF3YWl0IGVudi5EQi5wcmVwYXJlKGBERUxFVEUgRlJPTSByZWNvcmRzIFdIRVJFIGlkIElOICgke3BsYWNlaG9sZGVyc30pYCkuYmluZCguLi5leHBpcmVkSWRzKS5ydW4oKTsKCiAgICAgIGF3YWl0IHdyaXRlTG9nKGVudiwgbG9nSWQsIGxvZ0FjdGlvbiwgaXAsIHVhLCB7IGRlbGV0ZWQ6IGV4cGlyZWRJZHMubGVuZ3RoLCB0b2RheSB9KTsKCiAgICAgIHJldHVybiBqc29uKHsKICAgICAgICBvazogdHJ1ZSwKICAgICAgICBkZWxldGVkOiBleHBpcmVkSWRzLmxlbmd0aCwKICAgICAgICBtZXNzYWdlOiBg5bey5riF55CGICR7ZXhwaXJlZElkcy5sZW5ndGh9IOadoeWIsOacn+iusOW9leWPiuWFs+iBlOetvuWIsOa1geawtGAKICAgICAgfSk7CiAgICB9CgogICAgLy8g6buY6K6kIG1vZGU9YWxs77ya5riF56m65YWo6YOoCiAgICBhd2FpdCBlbnYuREIucHJlcGFyZSgnREVMRVRFIEZST00gdmlzaXRfbG9nJykucnVuKCk7CiAgICBhd2FpdCBlbnYuREIucHJlcGFyZSgnREVMRVRFIEZST00gcmVjb3JkcycpLnJ1bigpOwogICAgYXdhaXQgd3JpdGVMb2coZW52LCBsb2dJZCwgbG9nQWN0aW9uLCBpcCwgdWEsIHsgZGVsZXRlZDogJ2FsbCcgfSk7CgogICAgcmV0dXJuIGpzb24oeyBvazogdHJ1ZSwgbWVzc2FnZTogJ+W3sua4heepuuaJgOacieaVsOaNricgfSk7CiAgfSBjYXRjaCAoZXJyKSB7CiAgICByZXR1cm4ganNvbih7IGVycm9yOiAnY2xlYW51cCBmYWlsZWQ6ICcgKyBlcnIubWVzc2FnZSB9LCA1MDApOwogIH0KfQoKYXN5bmMgZnVuY3Rpb24gd3JpdGVMb2coZW52LCBpZCwgYWN0aW9uLCBpcCwgdWEsIG1ldGEpIHsKICB0cnkgewogICAgYXdhaXQgZW52LkRCLnByZXBhcmUoCiAgICAgICdJTlNFUlQgSU5UTyBhY2Nlc3NfbG9nIChpZCwgYWN0aW9uLCBhY3Rvcl9pcCwgYWN0b3JfdWEsIG1ldGEsIHRpbWUpIFZBTFVFUyAoPywgPywgPywgPywgPywgPyknCiAgICApLmJpbmQoaWQsIGFjdGlvbiwgaXAsIHVhLCBKU09OLnN0cmluZ2lmeShtZXRhIHx8IHt9KSwgbmV3IERhdGUoKS50b0lTT1N0cmluZygpKS5ydW4oKTsKICB9IGNhdGNoIChlKSB7CiAgICBjb25zb2xlLmVycm9yKCdbYWNjZXNzX2xvZ10gd3JpdGUgZmFpbGVkOicsIGUubWVzc2FnZSk7CiAgfQp9CgpmdW5jdGlvbiBqc29uKG9iaiwgc3RhdHVzID0gMjAwKSB7CiAgcmV0dXJuIG5ldyBSZXNwb25zZShKU09OLnN0cmluZ2lmeShvYmopLCB7CiAgICBzdGF0dXMsCiAgICBoZWFkZXJzOiB7CiAgICAgICdDb250ZW50LVR5cGUnOiAnYXBwbGljYXRpb24vanNvbjsgY2hhcnNldD11dGYtOCcsCiAgICAgICdBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW4nOiAnKicsCiAgICB9LAogIH0pOwp9
+// Pages Function: POST /api/admin/wipe
+// 模式：
+//   { mode: 'all',     adminPin }  → 清空全部数据（应急）
+//   { mode: 'expired', adminPin }  → 清理 retention_until < 今天的记录（含关联 visit_log）
+
+export async function onRequestPost(context) {
+  const { env, request } = context;
+  if (!env.DB) return json({ error: 'DB binding missing' }, 500);
+
+  const body = await request.json().catch(() => ({}));
+  const pin = body.adminPin || '';
+  if (pin !== '404112') return json({ error: 'unauthorized' }, 401);
+
+  // 兜底：保证 access_log 表存在（即便 records.js 还没被调用过）
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS access_log (
+        id TEXT PRIMARY KEY, action TEXT NOT NULL, actor_ip TEXT, actor_ua TEXT, meta TEXT, time TEXT NOT NULL
+      )
+    `).run();
+  } catch (e) {}
+
+  const mode = body.mode || 'all';
+
+  // 写访问日志
+  const ip = (request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || '').slice(0, 64);
+  const ua = (request.headers.get('user-agent') || '').slice(0, 256);
+  const logId = 'al_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const logAction = mode === 'expired' ? 'admin_cleanup_expired' : 'admin_wipe_all';
+
+  try {
+    if (mode === 'expired') {
+      const today = new Date().toISOString().slice(0, 10);
+      // 先删关联流水
+      const expiredRecords = await env.DB.prepare(
+        'SELECT id FROM records WHERE retention_until IS NOT NULL AND retention_until < ?'
+      ).bind(today).all();
+      const expiredIds = (expiredRecords.results || []).map(r => r.id);
+
+      if (expiredIds.length === 0) {
+        await writeLog(env, logId, logAction, ip, ua, { deleted: 0, today });
+        return json({ ok: true, deleted: 0, message: '没有需要清理的过期数据' });
+      }
+
+      // 分批删除占位 ? 用 IN (...)
+      const placeholders = expiredIds.map(() => '?').join(',');
+      await env.DB.prepare(`DELETE FROM visit_log WHERE rid IN (${placeholders})`).bind(...expiredIds).run();
+      const delRes = await env.DB.prepare(`DELETE FROM records WHERE id IN (${placeholders})`).bind(...expiredIds).run();
+
+      await writeLog(env, logId, logAction, ip, ua, { deleted: expiredIds.length, today });
+
+      return json({
+        ok: true,
+        deleted: expiredIds.length,
+        message: `已清理 ${expiredIds.length} 条到期记录及关联签到流水`
+      });
+    }
+
+    // 默认 mode=all：清空全部
+    await env.DB.prepare('DELETE FROM visit_log').run();
+    await env.DB.prepare('DELETE FROM records').run();
+    await writeLog(env, logId, logAction, ip, ua, { deleted: 'all' });
+
+    return json({ ok: true, message: '已清空所有数据' });
+  } catch (err) {
+    return json({ error: 'cleanup failed: ' + err.message }, 500);
+  }
+}
+
+async function writeLog(env, id, action, ip, ua, meta) {
+  try {
+    await env.DB.prepare(
+      'INSERT INTO access_log (id, action, actor_ip, actor_ua, meta, time) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, action, ip, ua, JSON.stringify(meta || {}), new Date().toISOString()).run();
+  } catch (e) {
+    console.error('[access_log] write failed:', e.message);
+  }
+}
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}

@@ -1,1 +1,43 @@
-Ly8gUGFnZXMgRnVuY3Rpb246IERFTEVURSAvYXBpL3JlY29yZHMvPGlkPgovLyDkuZ/mlK/mjIEgUE9TVCAvYXBpL3JlY29yZHMvPGlkPi9jaGVja2luCmV4cG9ydCBhc3luYyBmdW5jdGlvbiBvblJlcXVlc3REZWxldGUoY29udGV4dCkgewogIGNvbnN0IHsgZW52LCBwYXJhbXMgfSA9IGNvbnRleHQ7CiAgaWYgKCFlbnYuREIpIHJldHVybiBqc29uKHsgZXJyb3I6ICdEQiBiaW5kaW5nIG1pc3NpbmcnIH0sIDUwMCk7CiAgY29uc3QgaWQgPSBkZWNvZGVVUklDb21wb25lbnQocGFyYW1zLmlkKTsKCiAgLy8g5YWI5Yig5YWz6IGU55qE562+5Yiw5rWB5rC0CiAgYXdhaXQgZW52LkRCLnByZXBhcmUoJ0RFTEVURSBGUk9NIHZpc2l0X2xvZyBXSEVSRSByaWQgPSA/JykuYmluZChpZCkucnVuKCk7CiAgY29uc3QgciA9IGF3YWl0IGVudi5EQi5wcmVwYXJlKCdERUxFVEUgRlJPTSByZWNvcmRzIFdIRVJFIGlkID0gPycpLmJpbmQoaWQpLnJ1bigpOwogIGlmIChyLm1ldGEgJiYgci5tZXRhLmNoYW5nZXMgPT09IDApIHJldHVybiBqc29uKHsgZXJyb3I6ICdub3RfZm91bmQnIH0sIDQwNCk7CiAgcmV0dXJuIGpzb24oeyBvazogdHJ1ZSwgZGVsZXRlZDogaWQgfSk7Cn0KCmV4cG9ydCBhc3luYyBmdW5jdGlvbiBvblJlcXVlc3RQb3N0KGNvbnRleHQpIHsKICAvLyBQT1NUIC9hcGkvcmVjb3Jkcy88aWQ+L2NoZWNraW4gLSDnu5nmn5DmnaHmiqXlkI3miZPkuIDkuKrnrb7liLDngrkKICBjb25zdCB7IGVudiwgcGFyYW1zLCByZXF1ZXN0IH0gPSBjb250ZXh0OwogIGlmICghZW52LkRCKSByZXR1cm4ganNvbih7IGVycm9yOiAnREIgYmluZGluZyBtaXNzaW5nJyB9LCA1MDApOwogIGNvbnN0IHJpZCA9IGRlY29kZVVSSUNvbXBvbmVudChwYXJhbXMuaWQpOwogIGNvbnN0IGJvZHkgPSBhd2FpdCByZXF1ZXN0Lmpzb24oKS5jYXRjaCgoKSA9PiAoe30pKTsKICBjb25zdCByZWMgPSBhd2FpdCBlbnYuREIucHJlcGFyZSgnU0VMRUNUIGlkIEZST00gcmVjb3JkcyBXSEVSRSBpZCA9ID8nKS5iaW5kKHJpZCkuZmlyc3QoKTsKICBpZiAoIXJlYykgcmV0dXJuIGpzb24oeyBlcnJvcjogJ3JlY29yZF9ub3RfZm91bmQnIH0sIDQwNCk7CgogIGNvbnN0IGlkID0gJ3ZsXycgKyBEYXRlLm5vdygpICsgJ18nICsgTWF0aC5yYW5kb20oKS50b1N0cmluZygzNikuc2xpY2UoMiwgOCk7CiAgYXdhaXQgZW52LkRCLnByZXBhcmUoYAogICAgSU5TRVJUIElOVE8gdmlzaXRfbG9nIChpZCwgcmlkLCBwb2ludCwgb3BlcmF0b3IsIG5vdGUsIHRpbWUpCiAgICBWQUxVRVMgKD8sID8sID8sID8sID8sID8pCiAgYCkuYmluZCgKICAgIGlkLCByaWQsIGJvZHkucG9pbnQgfHwgJycsIGJvZHkub3BlcmF0b3IgfHwgJycsIGJvZHkubm90ZSB8fCAnJywKICAgIG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKQogICkucnVuKCk7CiAgcmV0dXJuIGpzb24oeyBvazogdHJ1ZSwgaWQgfSk7Cn0KCmZ1bmN0aW9uIGpzb24ob2JqLCBzdGF0dXMgPSAyMDApIHsKICByZXR1cm4gbmV3IFJlc3BvbnNlKEpTT04uc3RyaW5naWZ5KG9iaiksIHsKICAgIHN0YXR1cywKICAgIGhlYWRlcnM6IHsKICAgICAgJ0NvbnRlbnQtVHlwZSc6ICdhcHBsaWNhdGlvbi9qc29uOyBjaGFyc2V0PXV0Zi04JywKICAgICAgJ0FjY2Vzcy1Db250cm9sLUFsbG93LU9yaWdpbic6ICcqJywKICAgIH0sCiAgfSk7Cn0=
+// Pages Function: DELETE /api/records/<id>
+// 也支持 POST /api/records/<id>/checkin
+export async function onRequestDelete(context) {
+  const { env, params } = context;
+  if (!env.DB) return json({ error: 'DB binding missing' }, 500);
+  const id = decodeURIComponent(params.id);
+
+  // 先删关联的签到流水
+  await env.DB.prepare('DELETE FROM visit_log WHERE rid = ?').bind(id).run();
+  const r = await env.DB.prepare('DELETE FROM records WHERE id = ?').bind(id).run();
+  if (r.meta && r.meta.changes === 0) return json({ error: 'not_found' }, 404);
+  return json({ ok: true, deleted: id });
+}
+
+export async function onRequestPost(context) {
+  // POST /api/records/<id>/checkin - 给某条报名打一个签到点
+  const { env, params, request } = context;
+  if (!env.DB) return json({ error: 'DB binding missing' }, 500);
+  const rid = decodeURIComponent(params.id);
+  const body = await request.json().catch(() => ({}));
+  const rec = await env.DB.prepare('SELECT id FROM records WHERE id = ?').bind(rid).first();
+  if (!rec) return json({ error: 'record_not_found' }, 404);
+
+  const id = 'vl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  await env.DB.prepare(`
+    INSERT INTO visit_log (id, rid, point, operator, note, time)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, rid, body.point || '', body.operator || '', body.note || '',
+    new Date().toISOString()
+  ).run();
+  return json({ ok: true, id });
+}
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
