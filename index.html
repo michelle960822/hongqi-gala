@@ -4779,6 +4779,35 @@ function renderMyAutoList() {
 let _deleteOwnAttempts = 0;
 function showDeleteOwnRecordModal(record) {
   if (!record) return;
+
+  // 检查是否已有签到/体验流水——已发生体验则不允许自行删除
+  const hasVisits = (state.visitLog || []).some(v => v.rid === record.id);
+  if (hasVisits) {
+    openModal({
+      title: '⚠️ 无法释放名额',
+      body: el('div', { style: 'padding:4px 0 12px;font-size:14px;line-height:1.8;color:var(--text);' },
+        el('div', { style: 'background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:16px;margin-bottom:12px;' },
+          el('div', { style: 'font-size:40px;text-align:center;margin-bottom:10px;' }, '🎪'),
+          el('div', { style: 'font-weight:600;font-size:15px;color:#92400e;margin-bottom:8px;' }, '已参与现场体验'),
+          el('div', { style: 'color:#78350f;line-height:1.8;' },
+            '检测到你已使用本报名码在活动现场完成签到，意味着你已经参与了本次「红旗粉丝家年华」的体验环节。',
+            el('br'),
+            '为保证活动数据的完整和签到记录的准确性，报名信息将暂时保留，',
+            el('strong', {}, '无法自行删除或释放名额'),
+            '。'
+          )
+        ),
+        el('div', { style: 'background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;font-size:13px;color:#0c4a6e;line-height:1.7;' },
+          '💡 如确需取消或调整，请联系现场工作人员协助处理。'
+        )
+      ),
+      footer: el('div', { style: 'text-align:center;' },
+        el('button', { class: 'btn btn-primary', onclick: closeModal }, '我知道了')
+      )
+    });
+    return;
+  }
+
   const idTail = (record.idNumber || '').replace(/\s/g, '').slice(-4).toUpperCase();
 
   const idInputId = 'ownDelIdInput';
@@ -4795,8 +4824,7 @@ function showDeleteOwnRecordModal(record) {
         el('div', {}, '时段：', el('span', { style: 'font-weight:600;' }, `${record.dateLabel || ''} ${record.time || ''}`))
       ),
       el('div', { style: 'font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:12px;' },
-        '删除后该名额会立即释放，', el('strong', {}, '已签到的流水也会一并清除'),
-        '，原二维码失效。',
+        '删除后该名额会立即释放，原二维码将失效。',
         el('br'),
         '为安全起见，请输入', el('strong', {}, '报名时填写的身份证号后 4 位'),
         '以确认是你本人操作。'
