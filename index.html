@@ -2349,6 +2349,11 @@ function appendField(parent, opts) {
   if (opts.type === 'select') {
     input = el('select', { id: opts.id, name: opts.id });
     opts.options.forEach((o, i) => input.appendChild(el('option', { value: i === 0 ? '' : o }, o)));
+    // iOS 修复：select 选择器关闭后防止页面跳动
+    let _selScrollY = 0;
+    input.addEventListener('focus', () => { _selScrollY = window.scrollY; });
+    input.addEventListener('blur', () => { setTimeout(() => window.scrollTo(0, _selScrollY), 10); });
+    input.addEventListener('change', () => { setTimeout(() => window.scrollTo(0, _selScrollY), 10); });
   } else {
     input = el('input', { id: opts.id, name: opts.id, type: opts.type || 'text', placeholder: opts.placeholder || '' });
     if (opts.pattern) input.dataset.pattern = opts.pattern.source;
@@ -2378,11 +2383,7 @@ function selectSlot(idx) {
   state.selectedSlot = idx;
   renderSlotList();
   renderForm();
-  setTimeout(() => {
-    if (!$('#infoCard').classList.contains('hidden')) {
-      $('#infoCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, 50);
+  // 不自动滚动——表单就在时段卡片正下方，iOS select 交互会导致滚动跳转
 }
 
 function validateForm() {
@@ -4790,11 +4791,9 @@ function showDeleteOwnRecordModal(record) {
           el('div', { style: 'font-size:40px;text-align:center;margin-bottom:10px;' }, '🎪'),
           el('div', { style: 'font-weight:600;font-size:15px;color:#92400e;margin-bottom:8px;' }, '已参与现场体验'),
           el('div', { style: 'color:#78350f;line-height:1.8;' },
-            '检测到你已使用本报名码在活动现场完成签到，意味着你已经参与了本次「红旗粉丝家年华」的体验环节。',
+            '检测到您已使用本报名码进行「红旗粉丝家年华」现场体验签到。',
             el('br'),
-            '为保证活动数据的完整和签到记录的准确性，报名信息将暂时保留，',
-            el('strong', {}, '无法自行删除或释放名额'),
-            '。'
+            '您的报名将被保留，无法进行名额释放。'
           )
         )
       ),
