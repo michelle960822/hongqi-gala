@@ -5009,8 +5009,12 @@ function showQRModal(rid) {
   });
 }
 
-/* ===== Confetti 五彩纸屑特效 ===== */
-const CONFETTI_COLORS = ['#f59e0b','#ef4444','#3b82f6','#10b981','#ec4899','#8b5cf6','#14b8a6','#f97316','#eab308','#06b6d4'];
+/* ===== Confetti 五彩纸屑特效 v3 — 礼花筒喷射风格 =====
+ * 模拟双管礼花筒从底部两侧向上喷射：彩带飘落 + 碎花散落 + 金粉闪烁
+ */
+const CONFETTI_COLORS = ['#f59e0b','#ef4444','#3b82f6','#10b981','#ec4899','#8b5cf6','#14b8a6','#f97316'];
+const CONFETTI_GOLD   = ['#fef3c7','#fde68a','#fbbf24','#f59e0b','#fff7ed','#ffedd5'];
+
 function launchConfetti() {
   const old = document.querySelector('.confetti-canvas');
   if (old) old.remove();
@@ -5022,104 +5026,181 @@ function launchConfetti() {
   document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
 
-  const cx = canvas.width / 2;
-  const cy = canvas.height * 0.45; // 爆点偏上，对应弹窗位置
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H * 0.5;
   const particles = [];
-  const BURST_COUNT = 80;  // 主礼花弹
-  const DEBRIS_COUNT = 30; // 细碎火花屑
 
-  // ── 主礼花弹：360° 爆开 ──
-  for (let i = 0; i < BURST_COUNT; i++) {
-    const angle = (Math.PI * 2 * i) / BURST_COUNT + (Math.random() - 0.5) * 0.4;
-    const burstSpeed = 14 + Math.random() * 18; // 爆发初速大 → "peng" 感
-    particles.push({
-      x: cx, y: cy,
-      vx: Math.cos(angle) * burstSpeed,
-      vy: Math.sin(angle) * burstSpeed - 4, // 轻微上抛再下落
-      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-      size: 7 + Math.random() * 9,
-      rotation: Math.random() * 360,
-      rotSpeed: (Math.random() - 0.5) * 20,
-      shape: Math.random() > 0.4 ? 'rect' : 'circle',
-      life: 1,
-    });
+  // ── 两个礼花筒位置：底部偏两侧 ──
+  const cannons = [
+    { x: cx - W * 0.20, y: H * 0.72 },
+    { x: cx + W * 0.20, y: H * 0.72 },
+  ];
+
+  // ── 第一批：主喷射（t=0ms）── 彩带 + 大碎花 ──
+  function spawnBurst(cannonX, cannonY, count, delay) {
+    for (let i = 0; i < count; i++) {
+      const typeRoll = Math.random();
+      let shape, sizeW, sizeH;
+      if (typeRoll < 0.35) {
+        shape = 'streamer'; sizeW = 5 + Math.random() * 7; sizeH = 18 + Math.random() * 28;  // 彩带：细长
+      } else if (typeRoll < 0.70) {
+        shape = 'rect';     sizeW = 8 + Math.random() * 12; sizeH = 5 + Math.random() * 8;   // 长方形碎花
+      } else {
+        shape = 'circle';   sizeW = 5 + Math.random() * 11; sizeH = sizeW;                    // 圆形碎花
+      }
+
+      // 喷射角度：向上 + 向内侧扇形散开（-90° 是正上方）
+      const baseAngle = cannonX < cx ? -110 : -70;  // 左筒偏右上方，右筒偏左上方
+      const spreadAngle = (Math.random() - 0.5) * 100; // 扇形散开 ±50°
+      const angle = (baseAngle + spreadAngle) * Math.PI / 180;
+
+      const speed = 10 + Math.random() * 16; // 初速大 → 喷射感强
+
+      particles.push({
+        x: cannonX + (Math.random() - 0.5) * 30,
+        y: cannonY + (Math.random() - 0.5) * 20,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+        sizeW, sizeH, shape,
+        rotation: Math.random() * 360,
+        rotSpeed: (Math.random() - 0.5) * 18,
+        birth: performance.now() + delay,
+        life: 1,
+      });
+    }
   }
 
-  // ── 细碎火花屑：更小、更散、闪烁感 ──
-  for (let i = 0; i < DEBRIS_COUNT; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const burstSpeed = 6 + Math.random() * 22;
-    particles.push({
-      x: cx + (Math.random() - 0.5) * 40,
-      y: cy + (Math.random() - 0.5) * 30,
-      vx: Math.cos(angle) * burstSpeed,
-      vy: Math.sin(angle) * burstSpeed - 2,
-      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-      size: 2 + Math.random() * 4,
-      rotation: Math.random() * 360,
-      rotSpeed: (Math.random() - 0.5) * 30,
-      shape: 'circle',
-      life: 1,
-    });
+  // ── 第二批：金粉闪烁粒子（t=180ms）── 小而亮的点，闪烁效果 ──
+  function spawnSparkles(cannonX, cannonY, count, delay) {
+    for (let i = 0; i < count; i++) {
+      const angle = (-90 + (Math.random() - 0.5) * 140) * Math.PI / 180;
+      const speed = 8 + Math.random() * 20;
+      particles.push({
+        x: cannonX + (Math.random() - 0.5) * 40,
+        y: cannonY + (Math.random() - 0.5) * 30,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: CONFETTI_GOLD[Math.floor(Math.random() * CONFETTI_GOLD.length)],
+        sizeW: 2 + Math.random() * 4, sizeH: 2 + Math.random() * 4, shape: 'sparkle',
+        rotation: 0, rotSpeed: 0,
+        birth: performance.now() + delay,
+        life: 1,
+      });
+    }
   }
 
-  const gravity = 0.28;
-  const startTime = performance.now();
-  const burstPhase = 350;  // 爆发阶段 350ms：强劲推力
-  const totalDuration = 3200;
+  // ── 发射 ──
+  for (const c of cannons) {
+    spawnBurst(c.x, c.y, 55, 0);       // 主喷射：彩带 + 碎花
+    spawnSparkles(c.x, c.y, 20, 180);   // 金粉延迟 180ms
+    spawnBurst(c.x, c.y, 20, 350);      // 二次喷射：更多碎花
+  }
+  // 顶部中心也来一点（模拟筒口上方溢出）
+  spawnBurst(cx, H * 0.50, 30, 80);
+  spawnSparkles(cx, H * 0.50, 15, 250);
+
+  const gravity = 0.22;
+  const burstDrag = 0.975;   // 上升阶段阻力
+  const fallDrag = 0.965;    // 下落阶段阻力更大（飘落感）
+  const totalDuration = 3800;
 
   function draw(now) {
-    const elapsed = now - startTime;
-    if (elapsed > totalDuration) {
-      canvas.style.opacity = '0';
-      setTimeout(() => { if (canvas.parentNode) canvas.remove(); }, 650);
-      return;
+    const elapsed = now;
+    let anyAlive = false;
+
+    // 筒口闪光（前 400ms）
+    if (elapsed - particles[0]?.birth < 400) {
+      const glowAlpha = Math.max(0, (1 - (elapsed - particles[0].birth) / 400) * 0.18);
+      for (const c of cannons) {
+        const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 100);
+        g.addColorStop(0, `rgba(255,255,220,${glowAlpha})`);
+        g.addColorStop(0.4, `rgba(255,200,100,${glowAlpha * 0.5})`);
+        g.addColorStop(1, 'rgba(255,200,100,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(c.x - 100, c.y - 100, 200, 200);
+      }
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 爆发阶段拖尾光晕（模拟"peng"的一瞬间）
-    if (elapsed < 250) {
-      const glowAlpha = (1 - elapsed / 250) * 0.25;
-      const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, 180);
-      gradient.addColorStop(0, `rgba(255,255,220,${glowAlpha})`);
-      gradient.addColorStop(0.5, `rgba(255,200,100,${glowAlpha * 0.5})`);
-      gradient.addColorStop(1, 'rgba(255,200,100,0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    ctx.clearRect(0, 0, W, H);
 
     for (const p of particles) {
-      const inBurst = elapsed < burstPhase;
+      const age = elapsed - p.birth;
+      if (age < 0) { anyAlive = true; continue; }  // 还没出生
+      if (age > totalDuration) continue;
+      anyAlive = true;
+
+      // 物理：上升阶段阻力小，下落阶段飘
+      const rising = p.vy < 0;
+      const drag = rising ? burstDrag : fallDrag;
       p.vy += gravity;
-      // 爆发期阻力小（高速飞行），之后快速减速
-      const drag = inBurst ? 0.97 : 0.96;
       p.vx *= drag;
       p.vy *= drag;
       p.x += p.vx;
       p.y += p.vy;
+
+      // 彩带旋转有惯性
+      if (p.shape === 'streamer') {
+        p.rotSpeed *= 0.998; // 慢慢衰减但不停
+      }
       p.rotation += p.rotSpeed;
 
-      const fadeOut = elapsed > totalDuration - 600
-        ? 1 - (elapsed - (totalDuration - 600)) / 600
+      // 淡出：最后 700ms
+      const fadeOut = age > totalDuration - 700
+        ? 1 - (age - (totalDuration - 700)) / 700
         : 1;
+      const alpha = Math.min(p.life, fadeOut);
+
+      // 金粉闪烁：用 sin 做脉冲
+      let finalAlpha = alpha;
+      if (p.shape === 'sparkle') {
+        finalAlpha = alpha * (0.5 + 0.5 * Math.sin(age * 0.02));
+      }
 
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate((p.rotation * Math.PI) / 180);
-      ctx.globalAlpha = Math.min(p.life, fadeOut);
+      ctx.globalAlpha = finalAlpha;
       ctx.fillStyle = p.color;
 
-      if (p.shape === 'rect') {
-        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      if (p.shape === 'streamer') {
+        // 彩带：圆角细长条
+        const w = p.sizeW, h = p.sizeH;
+        const r = w / 2; // 圆角半径
+        ctx.beginPath();
+        ctx.moveTo(-w / 2, -h / 2 + r);
+        ctx.arcTo(-w / 2, -h / 2, w / 2, -h / 2, r);
+        ctx.arcTo(w / 2, -h / 2, w / 2, h / 2, r);
+        ctx.arcTo(w / 2, h / 2, -w / 2, h / 2, r);
+        ctx.arcTo(-w / 2, h / 2, -w / 2, -h / 2, r);
+        ctx.closePath();
+        ctx.fill();
+      } else if (p.shape === 'sparkle') {
+        // 金粉：发光小圆点 + 外光晕
+        ctx.beginPath();
+        ctx.arc(0, 0, p.sizeW, 0, Math.PI * 2);
+        ctx.fill();
+        // 外光晕
+        ctx.globalAlpha = finalAlpha * 0.3;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.sizeW * 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.shape === 'rect') {
+        ctx.fillRect(-p.sizeW / 2, -p.sizeH / 2, p.sizeW, p.sizeH);
       } else {
         ctx.beginPath();
-        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.arc(0, 0, p.sizeW / 2, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
     }
-    requestAnimationFrame(draw);
+
+    if (anyAlive) {
+      requestAnimationFrame(draw);
+    } else {
+      canvas.style.opacity = '0';
+      setTimeout(() => { if (canvas.parentNode) canvas.remove(); }, 650);
+    }
   }
 
   requestAnimationFrame(draw);
