@@ -1,13 +1,1 @@
-export async function onRequestGet(context) {
-  return new Response(JSON.stringify({
-    ok: true,
-    time: new Date().toISOString(),
-    binding: !!context.env.DB,
-    version: 'v5-skip-api-cache',
-  }), {
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
+ZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIG9uUmVxdWVzdEdldChjb250ZXh0KSB7CiAgcmV0dXJuIG5ldyBSZXNwb25zZShKU09OLnN0cmluZ2lmeSh7CiAgICBvazogdHJ1ZSwKICAgIHRpbWU6IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKSwKICAgIGJpbmRpbmc6ICEhY29udGV4dC5lbnYuREIsCiAgICB2ZXJzaW9uOiAndjUtc2tpcC1hcGktY2FjaGUnLAogIH0pLCB7CiAgICBoZWFkZXJzOiB7CiAgICAgICdDb250ZW50LVR5cGUnOiAnYXBwbGljYXRpb24vanNvbjsgY2hhcnNldD11dGYtOCcsCiAgICAgICdBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW4nOiAnKicsCiAgICB9LAogIH0pOwp9Cg==
