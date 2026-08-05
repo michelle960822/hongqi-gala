@@ -1,6 +1,7 @@
 export async function onRequestGet(context) {
   const { env } = context;
   if (!env.DB) return r({ error: 'DB binding missing' }, 500);
+  await ensureVisitLog(env);
   try {
     const { results } = await env.DB.prepare(
       'SELECT * FROM visit_log ORDER BY time DESC'
@@ -14,6 +15,7 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   const { request, env } = context;
   if (!env.DB) return r({ error: 'DB binding missing' }, 500);
+  await ensureVisitLog(env);
   let v;
   try { v = await request.json(); } catch { return r({ error: 'invalid json' }, 400); }
   if (!v || !v.rid || !v.time) return r({ error: 'missing fields (rid, time)' }, 400);
@@ -37,4 +39,20 @@ function r(obj, status = 200) {
       'Access-Control-Allow-Origin': '*',
     },
   });
+}
+
+async function ensureVisitLog(env) {
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS visit_log (
+        id TEXT PRIMARY KEY,
+        rid TEXT NOT NULL,
+        point TEXT,
+        operator TEXT,
+        note TEXT,
+        time TEXT NOT NULL
+      )
+    `).run();
+  } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_visit_log_time ON visit_log(time DESC)').run(); } catch (e) {}
 }

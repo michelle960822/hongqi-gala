@@ -282,9 +282,42 @@ async function logAccess(env, request, action, meta) {
   }
 }
 
-/* 自动迁移：第一次访问时给老库加上新列和 access_log 表（幂等） */
+/* 自动迁移：确保表结构完整（幂等）。包含 CREATE TABLE IF NOT EXISTS —— 即使 D1 被意外清空也能自动恢复 */
 async function ensureSchema(env) {
   if (!env.DB) return;
+
+  // 主表：records（幂等创建）
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS records (
+        id          TEXT PRIMARY KEY,
+        role_id     TEXT NOT NULL,
+        role_name   TEXT NOT NULL,
+        slot_idx    INTEGER NOT NULL,
+        date        TEXT NOT NULL,
+        date_label  TEXT NOT NULL,
+        time        TEXT NOT NULL,
+        category    TEXT,
+        real_name   TEXT NOT NULL,
+        id_number   TEXT NOT NULL,
+        phone       TEXT NOT NULL,
+        id_hmac     TEXT,
+        phone_hmac  TEXT,
+        id_masked   TEXT,
+        phone_masked TEXT,
+        platform_id TEXT,
+        platform    TEXT,
+        followers   TEXT,
+        comp_count  INTEGER DEFAULT 0,
+        companions  TEXT,
+        device_id   TEXT,
+        created_at  TEXT NOT NULL,
+        retention_until TEXT
+      )
+    `).run();
+  } catch (e) {}
+
+  // 旧列迁移（幂等，已存在则跳过）
   const additions = [
     'ALTER TABLE records ADD COLUMN id_hmac TEXT',
     'ALTER TABLE records ADD COLUMN phone_hmac TEXT',
@@ -295,6 +328,30 @@ async function ensureSchema(env) {
   for (const sql of additions) {
     try { await env.DB.prepare(sql).run(); } catch (e) { /* 已存在 */ }
   }
+
+  // 索引
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_role_slot ON records(role_id, slot_idx)').run(); } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_id_hmac ON records(id_hmac)').run(); } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_phone_hmac ON records(phone_hmac)').run(); } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_created_at ON records(created_at DESC)').run(); } catch (e) {}
+
+  // 签到流水表（visit_log）
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS visit_log (
+        id          TEXT PRIMARY KEY,
+        record_id   TEXT NOT NULL,
+        point       TEXT NOT NULL,
+        real_name   TEXT,
+        platform_id TEXT,
+        time        TEXT NOT NULL
+      )
+    `).run();
+  } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_visit_log_record ON visit_log(record_id)').run(); } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_visit_log_time ON visit_log(time DESC)').run(); } catch (e) {}
+
+  // 审计日志表
   try {
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS access_log (
@@ -307,15 +364,7 @@ async function ensureSchema(env) {
       )
     `).run();
   } catch (e) {}
-  try {
-    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_access_log_time ON access_log(time DESC)').run();
-  } catch (e) {}
-  try {
-    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_id_hmac ON records(id_hmac)').run();
-  } catch (e) {}
-  try {
-    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_phone_hmac ON records(phone_hmac)').run();
-  } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_access_log_time ON access_log(time DESC)').run(); } catch (e) {}
 }
 
 /* 老数据迁移：把 id_hmac IS NULL 的行（明文旧数据）批量加密成新格式
