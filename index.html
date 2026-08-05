@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>红旗粉丝家年华 · 拍摄专场报名</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2680,33 +2680,33 @@ function showSuccessQRModal(record) {
   const platformText = Array.isArray(r.platform) ? r.platform.join('、') : (r.platform || '—');
 
   const body = el('div', { style: 'text-align:center;' },
-    // 顶部大字"截屏保存"
+    // 顶部提示（紧凑版）
     el('div', {
-      style: 'background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:16px;'
+      style: 'background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:10px;'
     },
-      el('div', { style: 'font-size:20px;font-weight:700;color:#92400e;line-height:1.4;' },
+      el('div', { style: 'font-size:17px;font-weight:700;color:#92400e;line-height:1.3;' },
         '📸 请立即截屏保存！'
       ),
-      el('div', { style: 'font-size:13px;color:#78350f;margin-top:6px;line-height:1.6;' },
-        '活动当天出示本二维码给工作人员扫码签到。截屏是唯一凭证，丢失将无法补办。'
+      el('div', { style: 'font-size:12px;color:#78350f;margin-top:4px;line-height:1.5;' },
+        '活动当天出示本二维码扫码签到，截屏是唯一凭证。'
       )
     ),
-    // 大 QR（用 img 标签 + data URL，兼容性比 inline SVG 好）
-    el('div', { class: 'qr-box', style: 'display:inline-block;background:#fff;padding:12px;border-radius:10px;' },
-      el('img', { src: dataUrl, alt: '签到二维码', style: 'display:block;width:200px;height:200px;' })
+    // QR 码（缩小到 150px 以适配手机屏幕）
+    el('div', { class: 'qr-box', style: 'display:inline-block;background:#fff;padding:10px;border-radius:10px;' },
+      el('img', { src: dataUrl, alt: '签到二维码', style: 'display:block;width:150px;height:150px;' })
     ),
     // 平台信息
-    el('div', { style: 'margin-top:14px;font-size:14px;color:var(--text-2);' },
-      el('div', { style: 'margin-bottom:4px;' }, platformText + ' · 平台ID：' + (r.platformId || '—'))
+    el('div', { style: 'margin-top:10px;font-size:13px;color:var(--text-2);' },
+      el('div', { style: 'margin-bottom:2px;' }, platformText + ' · 平台ID：' + (r.platformId || '—'))
     ),
-    // 签到编号（大字）
+    // 签到编号（紧凑版）
     el('div', {
-      style: 'margin-top:14px;padding:12px 18px;background:linear-gradient(135deg,#fee2e2,#fecaca);border-radius:8px;display:inline-block;'
+      style: 'margin-top:10px;padding:8px 14px;background:linear-gradient(135deg,#fee2e2,#fecaca);border-radius:8px;display:inline-block;'
     },
-      el('div', { style: 'font-size:12px;color:#7f1d1d;letter-spacing:1px;' }, '你的签到编号'),
+      el('div', { style: 'font-size:11px;color:#7f1d1d;letter-spacing:1px;' }, '签到编号'),
       el('div', {
         id: 'successQRId',
-        style: 'font-size:30px;font-weight:700;color:#dc2626;letter-spacing:6px;font-family:ui-monospace,SFMono-Regular,monospace;margin-top:4px;'
+        style: 'font-size:24px;font-weight:700;color:#dc2626;letter-spacing:5px;font-family:ui-monospace,SFMono-Regular,monospace;margin-top:2px;'
       }, r.id)
     )
   );
@@ -5022,22 +5022,23 @@ function launchConfetti() {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
 
-  const colors = ['#C8102E','#f59e0b','#3b82f6','#10b981','#ec4899','#8b5cf6','#f97316','#eab308','#06b6d4','#fff'];
+  const colors = ['#C8102E','#f59e0b','#3b82f6','#10b981','#ec4899','#8b5cf6','#f97316','#eab308','#06b6d4','#fbbf24','#fff','#f472b6'];
   const particles = [];
   const gravity = 0.12;
-  const count = 140;
+  const count = 200;
 
   for (let i = 0; i < count; i++) {
+    const isLarge = i < 60;  // 前 60 片是大纸屑（更有存在感）
     particles.push({
-      x: W / 2 + (Math.random() - 0.5) * 240,
-      y: H * 0.45 + (Math.random() - 0.5) * 120,
-      w: 6 + Math.random() * 10,     // 细长矩形：宽 6-16
-      h: 2.5 + Math.random() * 4,    // 高 2.5-6.5
+      x: W / 2 + (Math.random() - 0.5) * 320,
+      y: H * 0.45 + (Math.random() - 0.5) * 140,
+      w: isLarge ? 10 + Math.random() * 16 : 5 + Math.random() * 10,   // 大: 10-26, 小: 5-15
+      h: isLarge ? 4 + Math.random() * 7  : 2 + Math.random() * 4,    // 大: 4-11, 小: 2-6
       color: colors[Math.floor(Math.random() * colors.length)],
-      vx: (Math.random() - 0.5) * 9,  // 水平散开
-      vy: -7 - Math.random() * 18,    // 向上喷射 7-25 px/帧
+      vx: (Math.random() - 0.5) * 11,     // 水平散开更广
+      vy: -5 - Math.random() * 22,         // 向上喷射
       rot: Math.random() * Math.PI * 2,
-      rv: (Math.random() - 0.5) * 0.3, // 自转速度
+      rv: (Math.random() - 0.5) * 0.35,    // 自转稍快 → 更灵动
     });
   }
 
@@ -5047,21 +5048,26 @@ function launchConfetti() {
     ctx.clearRect(0, 0, W, H);
     let alive = 0;
     for (const p of particles) {
-      // 80 帧后，已经下落且超出屏幕的跳过
-      if (frame > 80 && p.vy > 0 && p.y > H + 30) continue;
+      if (frame > 80 && p.vy > 0 && p.y > H + 40) continue;
       alive++;
       p.vy += gravity;
       p.x += p.vx;
       p.y += p.vy;
       p.rot += p.rv;
+
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
+
+      // 立体感：先画深色阴影偏移 1px，再画主色
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(-p.w / 2 + 1, -p.h / 2 + 1, p.w, p.h);
       ctx.fillStyle = p.color;
       ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+
       ctx.restore();
     }
-    if (alive > 0 && frame < 220) {
+    if (alive > 0 && frame < 240) {
       requestAnimationFrame(draw);
     } else {
       canvas.style.opacity = '0';
@@ -5090,6 +5096,8 @@ function openModal({ title, body, footer }) {
 function closeModal() {
   const m = document.getElementById('modalMask');
   if (m) m.remove();
+  // 关闭弹窗后回到页面顶部（避免停在表单底部）
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function downloadQRDataURL(dataUrl, filename) {
