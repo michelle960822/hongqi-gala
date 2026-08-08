@@ -5392,60 +5392,6 @@ function bindEvents() {
   console.log('[testfill] 注入 25 条占满数据 + 18 条签到流水');
 })();
 
-// 演示模式：?demo=1 注入适量混合日期数据，用于验证核销日期提示 + 导出比对列
-(function demoSeed() {
-  if (!/[?&]demo=1/.test(location.search)) return;
-  const pad = n => String(n).padStart(2, '0');
-
-  const records = [
-    { id: '900001', roleId:'anchor', roleName:'经销商主播', slotIdx:0, date:'2026-08-12', dateLabel:'8月12日', time:'14:00-16:00', category:'北京中升丰鼎红旗', platformId:'了不起的张先生', platform:['抖音','快手'], followers:'35', realName:'张伟', idNumber:'110105199001010001', phone:'13800001001', compCount:0, companions:[], createdAt:'2026-08-01 10:00:00' },
-    { id: '900002', roleId:'anchor', roleName:'经销商主播', slotIdx:1, date:'2026-08-12', dateLabel:'8月12日', time:'16:00-18:00', category:'成都锦泰红旗', platformId:'红旗小甜甜', platform:['小红书'], followers:'28', realName:'王芳', idNumber:'110105199001010002', phone:'13800001002', compCount:0, companions:[], createdAt:'2026-08-02 10:00:00' },
-    { id: '900003', roleId:'talent', roleName:'集团达人', slotIdx:0, date:'2026-08-12', dateLabel:'8月12日', time:'10:00-12:00', category:'金融A组', platformId:'达人阿强', platform:['B站','微博'], followers:'52', realName:'刘强', idNumber:'110105199001010003', phone:'13800001003', compCount:0, companions:[], createdAt:'2026-08-01 11:00:00' },
-    { id: '900004', roleId:'talent', roleName:'集团达人', slotIdx:2, date:'2026-08-15', dateLabel:'8月15日', time:'10:00-14:00', category:'金融B组', platformId:'拍车的老李', platform:['B站'], followers:'41', realName:'李强', idNumber:'110105199001010004', phone:'13800001004', compCount:0, companions:[], createdAt:'2026-08-02 11:00:00' },
-    { id: '900005', roleId:'media',  roleName:'媒体',      slotIdx:0, date:'2026-08-13', dateLabel:'8月13日', time:'10:00-12:00', category:'红旗G919', platformId:'汽车之家记者A', platform:['微博','小红书'], followers:'0', realName:'陈静', idNumber:'110105199001010005', phone:'13800001005', compCount:0, companions:[], createdAt:'2026-08-03 09:00:00' },
-    { id: '900006', roleId:'media',  roleName:'媒体',      slotIdx:5, date:'2026-08-14', dateLabel:'8月14日', time:'14:00-16:00', category:'红旗G919', platformId:'懂车帝编辑B', platform:['抖音'], followers:'0', realName:'赵敏', idNumber:'110105199001010006', phone:'13800001006', compCount:0, companions:[], createdAt:'2026-08-03 10:00:00' },
-    { id: '900007', roleId:'media',  roleName:'媒体',      slotIdx:2, date:'2026-08-13', dateLabel:'8月13日', time:'14:00-16:00', category:'红旗G919', platformId:'易车小编C', platform:['视频号'], followers:'0', realName:'黄磊', idNumber:'110105199001010007', phone:'13800001007', compCount:0, companions:[], createdAt:'2026-08-04 08:00:00' },
-    { id: '900008', roleId:'media',  roleName:'媒体',      slotIdx:7, date:'2026-08-14', dateLabel:'8月14日', time:'16:00-18:00', category:'红旗G919', platformId:'太平洋汽车D', platform:['短视频'], followers:'0', realName:'周杰', idNumber:'110105199001010008', phone:'13800001008', compCount:0, companions:[], createdAt:'2026-08-04 09:00:00' },
-  ];
-
-  // 签到流水：精心设计日期匹配/不匹配/无签到三种场景
-  const visits = [
-    // #1 张伟 预约8.12 → 8.12签到 ✅ 匹配
-    { id:'v_demo_001', rid:'900001', point:'红旗G919原地掉头体验', operator:'审核员张', ts:'2026-08-12 10:15:00' },
-    // #2 王芳 预约8.12 → 8.14签到 ❌ 不匹配
-    { id:'v_demo_002', rid:'900002', point:'红旗G919驼峰桥体验区', operator:'审核员李', ts:'2026-08-14 14:30:00' },
-    { id:'v_demo_003', rid:'900002', point:'悬空障碍物',           operator:'审核员李', ts:'2026-08-14 15:10:00' },
-    // #3 刘强 预约8.12 → 8.13签到 ❌ 不匹配
-    { id:'v_demo_004', rid:'900003', point:'断头路',              operator:'审核员张', ts:'2026-08-13 11:00:00' },
-    // #4 李强 预约8.15 → 8.13(❌) + 8.15(✅) 各有一次
-    { id:'v_demo_005', rid:'900004', point:'窄通道侧方',           operator:'审核员王', ts:'2026-08-13 10:00:00' },
-    { id:'v_demo_006', rid:'900004', point:'垂直窄位',            operator:'审核员王', ts:'2026-08-15 11:30:00' },
-    // #5 陈静 预约8.13 → 8.12签到 ❌ 不匹配（提前一天来）
-    { id:'v_demo_007', rid:'900005', point:'红旗G919原地掉头体验', operator:'审核员张', ts:'2026-08-12 09:50:00' },
-    { id:'v_demo_008', rid:'900005', point:'悬空障碍物',           operator:'审核员赵', ts:'2026-08-14 16:00:00' },
-    // #6 赵敏 预约8.14 → 8.14签到 ✅ 匹配
-    { id:'v_demo_009', rid:'900006', point:'红旗G919驼峰桥体验区', operator:'审核员李', ts:'2026-08-14 10:30:00' },
-    // #7 黄磊 预约8.13 → 无签到记录
-    // #8 周杰 预约8.14 → 8.12(❌) + 8.14(✅) + 8.14(✅) 多次
-    { id:'v_demo_010', rid:'900008', point:'断头路',              operator:'审核员张', ts:'2026-08-12 15:00:00' },
-    { id:'v_demo_011', rid:'900008', point:'窄通道侧方',           operator:'审核员张', ts:'2026-08-14 11:00:00' },
-    { id:'v_demo_012', rid:'900008', point:'垂直窄位',            operator:'审核员赵', ts:'2026-08-14 16:00:00' },
-  ];
-
-  localStorage.setItem('fan_signup_records_v1', JSON.stringify(records));
-  localStorage.setItem('fan_visit_log_v1', JSON.stringify(visits));
-  // 自动登录 admin
-  localStorage.setItem('fan_session_admin_v1', JSON.stringify({
-    token: 'staff_demo', expiresAt: Date.now() + 12 * 60 * 60 * 1000, loginAt: Date.now()
-  }));
-  // 同时注入签到 session，让 checkin 视图也可用
-  localStorage.setItem('fan_session_checkin_v1', JSON.stringify({
-    token: 'staff_demo', expiresAt: Date.now() + 12 * 60 * 60 * 1000, loginAt: Date.now()
-  }));
-  // 设置签入密码 888888
-  localStorage.setItem('fan_pin_checkin_v1', '888888');
-  console.log('[demo] 注入 8 条报名 + 12 条签到流水（含日期匹配/不匹配/无签到场景）');
-})();
 // 隐私修复：页面一打开就初始化本机 deviceId，避免「我的报名」在没有 deviceId 时泄漏全部记录
 getDeviceId();
 loadRecords();
@@ -5457,8 +5403,7 @@ bindEvents();
 renderRoleGrid();
 
 // 启动云同步轮询（Cloudflare Pages Function + D1 实时多端同步）
-// demo 模式下跳过云端同步，避免空 D1 数据覆盖本地演示数据
-if (_syncEnabled && !/[?&]demo=1/.test(location.search)) {
+if (_syncEnabled) {
   startSyncPolling();
 }
 
