@@ -5457,7 +5457,8 @@ bindEvents();
 renderRoleGrid();
 
 // 启动云同步轮询（Cloudflare Pages Function + D1 实时多端同步）
-if (_syncEnabled) {
+// demo 模式下跳过云端同步，避免空 D1 数据覆盖本地演示数据
+if (_syncEnabled && !/[?&]demo=1/.test(location.search)) {
   startSyncPolling();
 }
 
