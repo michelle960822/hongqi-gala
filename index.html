@@ -3842,8 +3842,8 @@ function exportVisitLogDetail() {
   });
 
   const headers = [
-    '签到编号', '身份', '日期', '时间段', '真实姓名', '平台', '平台ID', '联系方式',
-    '已体验点位（次数）', '首次签到时间', '末次签到时间', '总签到次数',
+    '签到编号', '身份', '日期（预约）', '时间段（预约）', '真实姓名', '平台', '平台ID', '联系方式',
+    '已体验点位（次数）', '首次签到时间', '首次签到日期', '是否预约日签到', '末次签到时间', '总签到次数',
     '签到流水（按时间）',
   ];
   const rows = state.records.map(r => {
@@ -3852,10 +3852,15 @@ function exportVisitLogDetail() {
     logs.forEach(l => { pointCounts[l.point] = (pointCounts[l.point] || 0) + 1; });
     const pointSummary = Object.entries(pointCounts).map(([p, n]) => `${p}×${n}`).join('；') || '（未签到）';
     const platformText = Array.isArray(r.platform) ? r.platform.join('、') : (r.platform || '');
+    const firstTs = logs[0] ? logs[0].ts : '';
+    const firstDate = firstTs ? firstTs.slice(0, 10) : '';
+    const inSlot = firstDate ? (firstDate === r.date ? '是' : '否') : '（未签到）';
     return [
       r.id, r.roleName, r.dateLabel, r.time, r.realName, platformText, r.platformId || '', r.phone || '',
       pointSummary,
-      logs[0] ? logs[0].ts : '',
+      firstTs,
+      firstDate,
+      inSlot,
       logs[logs.length - 1] ? logs[logs.length - 1].ts : '',
       logs.length,
       logs.map(l => `${l.point}@${l.ts}`).join('；'),
@@ -4081,6 +4086,24 @@ function renderCheckinPerson() {
       )
     )
   ));
+
+  // 非预约日签到提示横幅
+  (() => {
+    const d = new Date();
+    const pd2 = n => String(n).padStart(2, '0');
+    const todayDate = `${d.getFullYear()}-${pd2(d.getMonth() + 1)}-${pd2(d.getDate())}`;
+    if (todayDate !== r.date) {
+      personDiv.appendChild(el('div', {
+        class: 'checkin-warn-banner',
+        style: 'background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-top:10px;color:#92400e;font-size:14px;line-height:1.6;'
+      },
+        el('strong', {}, '⚠️ 非预约日签到：'),
+        el('span', { style: 'margin-left:4px;' },
+          `该人员预约日期为 ${r.dateLabel || r.date}（${r.time || ''}），当前为非预约日签到，请工作人员确认。`
+        )
+      ));
+    }
+  })();
 
   // 签到流水
   const logs = getVisitLogForRecord(r.id).sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
