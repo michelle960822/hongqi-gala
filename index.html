@@ -3115,7 +3115,7 @@ function commitBatchImport(validItems) {
       category: it.item.类别,
       platformId: it.item.平台ID,
       platform: platformArr(it.item.主要发布平台),
-      followers: it.item.粉丝数 || '',
+      followers: it.item['粉丝数(万)'] || '',
       realName: it.item.真实姓名,
       idNumber: it.item.身份证号.toUpperCase(),
       phone: it.item.联系方式,
