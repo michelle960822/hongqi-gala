@@ -1375,6 +1375,7 @@ const ROLES = {
       { date: '2026-08-12', dateLabel: '8月12日', time: '12:00-14:00', capacity: 25 },
       { date: '2026-08-15', dateLabel: '8月15日', time: '10:00-14:00', capacity: 30 },
     ],
+    allowMultiSlot: true,  // 达人可同时选多个时段
   },
   media: {
     id: 'media',
@@ -1411,6 +1412,7 @@ const ROLES = {
       { date: '2026-08-14', dateLabel: '8月14日', time: '14:00-16:00', capacity: 25 },
       { date: '2026-08-14', dateLabel: '8月14日', time: '16:00-18:00', capacity: 25 },
     ],
+    allowMultiSlot: true,  // 媒体可同时选多个时段
   },
 };
 
@@ -1474,7 +1476,8 @@ try {
 const DEFAULT_PIN = '888888';                  // 默认 PIN，建议首次登录后修改
 let state = {
   selectedRole: null,     // 当前选中的身份
-  selectedSlot: null,     // 当前选中的时段索引
+  selectedSlot: null,     // 当前选中的时段索引（单选模式）
+  selectedSlots: new Set(), // 当前选中的时段索引集合（多选模式：media / talent）
   records: [],            // 报名记录
   visitLog: [],           // 签到流水
   customPoints: [],       // 自定义点位
@@ -1910,6 +1913,9 @@ async function syncFromCloud(opts = {}) {
       companions: r.companions ? (typeof r.companions === 'string' ? JSON.parse(r.companions) : r.companions) : [],
       deviceId: r.device_id || '',
       createdAt: r.created_at,
+      // multi-slot: cloud 可能存 JSON 或逗号分隔，兼容降级
+      slots: (r.slots && (typeof r.slots === 'string' ? JSON.parse(r.slots) : r.slots))
+        || [{ slotIdx: r.slot_idx, date: r.date, dateLabel: r.date_label, time: r.time }],
     }));
 
     // 比较是否变化
@@ -2002,7 +2008,14 @@ function getAllPoints() {
 function getSlotKey(roleId, slotIdx) { return `${roleId}#${slotIdx}`; }
 
 function getSlotUsed(roleId, slotIdx) {
-  return state.records.filter(r => r.roleId === roleId && r.slotIdx === slotIdx).length;
+  // 向后兼容：优先从 records.slots 数组计算，无则用旧字段
+  return state.records.filter(r => {
+    if (r.roleId !== roleId) return false;
+    if (r.slots && r.slots.length > 0) {
+      return r.slots.some(s => s.slotIdx === slotIdx);
+    }
+    return r.slotIdx === slotIdx;
+  }).length;
 }
 
 /* 生成 6 位纯数字 record id（易记易输入，100万组合，活动场景足够）
@@ -2117,6 +2130,7 @@ function renderSlotList() {
   list.innerHTML = '';
 
   const role = ROLES[state.selectedRole];
+  const isMulti = !!(role && role.allowMultiSlot);
 
   // 按日期分组渲染
   const groups = {};
@@ -2129,9 +2143,10 @@ function renderSlotList() {
   Object.entries(groups).forEach(([dateLabel, items]) => {
     // 日期分组标题
     list.appendChild(el('div', { class: 'slot-group-title' },
-      `📅 ${dateLabel}`,
+      `${isMulti ? '☐ ' : ''}📅 ${dateLabel}`,
       el('span', { style: 'font-size:12px;color:var(--text-3);font-weight:400;margin-left:8px;' },
-        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 人`)
+        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 人`),
+      isMulti ? el('span', { style: 'font-size:11px;color:var(--primary);margin-left:8px;' }, '可多选') : null
     ));
     // 网格
     const grid = el('div', { class: 'slot-list' });
@@ -2140,17 +2155,23 @@ function renderSlotList() {
       const remain = slot.capacity - used;
       const isFull = remain <= 0;
       const ratio = used / slot.capacity;
+      const isActive = isMulti ? state.selectedSlots.has(idx) : (state.selectedSlot === idx);
 
       let quotaCls = '';
       if (isFull) quotaCls = 'full';
       else if (ratio >= 0.8) quotaCls = 'warn';
 
+      const checkbox = isMulti
+        ? el('span', { style: 'margin-right:4px;font-size:14px;' }, isActive ? '☑' : '☐')
+        : null;
+
       const opt = el('div', {
-        class: 'slot-option' + (state.selectedSlot === idx ? ' active' : '') + (isFull ? ' disabled' : ''),
+        class: 'slot-option' + (isActive ? ' active' : '') + (isFull ? ' disabled' : ''),
         onclick: () => { if (!isFull) selectSlot(idx); },
       },
         el('div', {},
-          el('div', { class: 'time' }, slot.time),
+          checkbox,
+          el('span', { class: 'time' }, slot.time),
         ),
         el('div', { class: 'quota ' + quotaCls },
           isFull
@@ -2172,23 +2193,35 @@ function renderSlotList() {
 
 function renderForm() {
   const card = $('#infoCard');
-  if (!state.selectedRole || state.selectedSlot == null) {
+  const role = state.selectedRole ? ROLES[state.selectedRole] : null;
+  const isMulti = !!(role && role.allowMultiSlot);
+  const hasSelection = isMulti ? (state.selectedSlots.size > 0) : (state.selectedSlot != null);
+  if (!state.selectedRole || !hasSelection) {
     card.classList.add('hidden');
     return;
   }
   card.classList.remove('hidden');
 
-  const role = ROLES[state.selectedRole];
   const slot = role.slots[state.selectedSlot];
   const area = $('#formArea');
   area.innerHTML = '';
 
   /* 拍摄信息确认 */
-  const selectedInfo = el('div', { class: 'helper' },
-    el('strong', {}, '已选时段：'),
-    `${slot.dateLabel} ${slot.time}（剩余 ${slot.capacity - getSlotUsed(role.id, state.selectedSlot)} / ${slot.capacity} 人）`
-  );
-  area.appendChild(selectedInfo);
+  if (isMulti && state.selectedSlots.size > 1) {
+    const slotLabels = [...state.selectedSlots].sort().map(si => {
+      const s = role.slots[si];
+      return `${s.dateLabel} ${s.time}`;
+    }).join('、');
+    area.appendChild(el('div', { class: 'helper', style: 'background:#f0fdf4;border-color:#bbf7d0;color:#065f46;' },
+      el('strong', {}, `✅ 已选 ${state.selectedSlots.size} 个时段：`),
+      slotLabels
+    ));
+  } else {
+    area.appendChild(el('div', { class: 'helper' },
+      el('strong', {}, '已选时段：'),
+      `${slot.dateLabel} ${slot.time}（剩余 ${slot.capacity - getSlotUsed(role.id, state.selectedSlot)} / ${slot.capacity} 人）`
+    ));
+  }
 
   /* 主体信息 */
   const grid = el('div', { class: 'form-grid', style: 'margin-top:14px;' });
@@ -2377,6 +2410,7 @@ function appendField(parent, opts) {
 function selectRole(roleId) {
   state.selectedRole = roleId;
   state.selectedSlot = null;
+  state.selectedSlots = new Set();
   renderRoleGrid();
   renderSlotList();
   renderForm();
@@ -2389,10 +2423,23 @@ function selectRole(roleId) {
 }
 
 function selectSlot(idx) {
-  state.selectedSlot = idx;
+  const role = ROLES[state.selectedRole];
+  if (role && role.allowMultiSlot) {
+    // 复选框模式：toggle
+    if (state.selectedSlots.has(idx)) {
+      state.selectedSlots.delete(idx);
+    } else {
+      state.selectedSlots.add(idx);
+    }
+    // 兼容单选字段：取第一个
+    state.selectedSlot = state.selectedSlots.size > 0 ? Math.min(...state.selectedSlots) : null;
+  } else {
+    // 单选模式
+    state.selectedSlot = idx;
+    state.selectedSlots = new Set([idx]);
+  }
   renderSlotList();
   renderForm();
-  // 不自动滚动——表单就在时段卡片正下方，iOS select 交互会导致滚动跳转
 }
 
 function validateForm() {
@@ -2519,13 +2566,16 @@ function isDuplicate(idNumber, phone) {
 }
 
 function submitForm() {
-  if (!state.selectedRole || state.selectedSlot == null) {
+  const role = state.selectedRole ? ROLES[state.selectedRole] : null;
+  const isMulti = !!(role && role.allowMultiSlot);
+  const hasSelection = isMulti ? (state.selectedSlots.size > 0) : (state.selectedSlot != null);
+  if (!role || !hasSelection) {
     toast('请先选择身份和时段', 'warn');
     return;
   }
-  const role = ROLES[state.selectedRole];
-  const slot = role.slots[state.selectedSlot];
-  const remain = slot.capacity - getSlotUsed(role.id, state.selectedSlot);
+  const primarySlotIdx = isMulti ? Math.min(...state.selectedSlots) : state.selectedSlot;
+  const primarySlot = role.slots[primarySlotIdx];
+  const remain = primarySlot.capacity - getSlotUsed(role.id, primarySlotIdx);
   if (remain <= 0) {
     toast('该时段已报满，请选择其他时段', 'error');
     return;
@@ -2603,10 +2653,16 @@ function submitForm() {
     id: genRecordId(),
     roleId: role.id,
     roleName: role.name,
-    slotIdx: state.selectedSlot,
-    date: slot.date,
-    dateLabel: slot.dateLabel,
-    time: slot.time,
+    slotIdx: primarySlotIdx,
+    date: primarySlot.date,
+    dateLabel: primarySlot.dateLabel,
+    time: primarySlot.time,
+    slots: isMulti
+      ? [...state.selectedSlots].sort().map(si => {
+          const s = role.slots[si];
+          return { slotIdx: si, date: s.date, dateLabel: s.dateLabel, time: s.time };
+        })
+      : [{ slotIdx: primarySlotIdx, date: primarySlot.date, dateLabel: primarySlot.dateLabel, time: primarySlot.time }],
     category: document.getElementById('category').value.trim(),
     platformId: document.getElementById('platformId').value.trim(),
     platform: checkedPlatforms,         // 数组
@@ -2763,6 +2819,7 @@ function resetForm(clearSelection = true) {
   if (clearSelection) {
     state.selectedRole = null;
     state.selectedSlot = null;
+    state.selectedSlots = new Set();
     renderRoleGrid();
     renderSlotList();
     renderForm();
@@ -3534,7 +3591,9 @@ function renderRecordList() {
       ),
       el('td', {}, r.createdAt || '—'),
       el('td', {}, el('span', { class: 'badge ' + (ROLES[r.roleId] ? ROLES[r.roleId].badge : 'badge-media') }, r.roleName)),
-      el('td', {}, `${r.dateLabel} ${r.time}`),
+      el('td', {}, (r.slots && r.slots.length > 1)
+        ? el('span', { style: 'font-size:12px;' }, r.slots.map(s => `${s.dateLabel} ${s.time}`).join(' + '))
+        : `${r.dateLabel} ${r.time}`),
       el('td', {}, r.realName),
       el('td', {}, `${platformText} · ${r.platformId}`),
       el('td', { class: 'qr-thumb-cell' },
@@ -3604,6 +3663,7 @@ function buildCheckinUrl(rid, point) {
       t: r.time || '',
       d: r.dateLabel || '',
       ph: r.phone || '',
+      sl: (r.slots && r.slots.length > 1) ? r.slots.map(s => `${s.dateLabel} ${s.time}`) : undefined, // multi-slot info
     };
     try {
       const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(compact))));
@@ -3912,8 +3972,10 @@ function exportCSV() {
     const c1 = r.companions[0] || {};
     const c2 = r.companions[1] || {};
     const platformText = Array.isArray(r.platform) ? r.platform.join('、') : (r.platform || '');
+    const dateDisplay = (r.slots && r.slots.length > 1) ? r.slots.map(s => s.dateLabel).join('、') : r.dateLabel;
+    const timeDisplay = (r.slots && r.slots.length > 1) ? r.slots.map(s => s.time).join('、') : r.time;
     return [
-      r.createdAt, r.roleName, r.dateLabel, r.time, r.category, platformText, r.platformId, r.followers,
+      r.createdAt, r.roleName, dateDisplay, timeDisplay, r.category, platformText, r.platformId, r.followers,
       r.realName, r.idNumber, r.phone, r.compCount,
       c1.name || '', c1.idNumber || '', c1.phone || '',
       c2.name || '', c2.idNumber || '', c2.phone || '',
@@ -4093,7 +4155,9 @@ function renderCheckinPerson() {
     el('div', { class: 'name' }, r.platformId || '—'),
     el('div', { class: 'meta' },
       el('div', {}, el('strong', {}, '身份：'), ROLES[r.roleId] ? ROLES[r.roleId].name : r.roleName),
-      el('div', {}, el('strong', {}, '拍摄时段：'), `${r.dateLabel} ${r.time}`),
+      el('div', {}, el('strong', {}, '拍摄时段：'), (r.slots && r.slots.length > 1)
+        ? r.slots.map(s => `${s.dateLabel} ${s.time}`).join('、')
+        : `${r.dateLabel} ${r.time}`),
       el('div', {}, el('strong', {}, '发布平台：'), platformText),
       el('div', { style: 'margin-top:6px;' },
         el('span', { class: 'qr-id' }, '签到编号：' + r.id)
@@ -4106,14 +4170,19 @@ function renderCheckinPerson() {
     const d = new Date();
     const pd2 = n => String(n).padStart(2, '0');
     const todayDate = `${d.getFullYear()}-${pd2(d.getMonth() + 1)}-${pd2(d.getDate())}`;
-    if (todayDate !== r.date) {
+    const dates = (r.slots && r.slots.length > 0) ? r.slots.map(s => s.date) : [r.date];
+    const inAnySlot = dates.includes(todayDate);
+    if (!inAnySlot) {
+      const dateDisplay = (r.slots && r.slots.length > 1)
+        ? r.slots.map(s => `${s.dateLabel} ${s.time}`).join('、')
+        : `${r.dateLabel || r.date}（${r.time || ''}）`;
       personDiv.appendChild(el('div', {
         class: 'checkin-warn-banner',
         style: 'background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-top:10px;color:#92400e;font-size:14px;line-height:1.6;'
       },
         el('strong', {}, '⚠️ 非预约日签到：'),
         el('span', { style: 'margin-left:4px;' },
-          `该人员预约日期为 ${r.dateLabel || r.date}（${r.time || ''}），当前为非预约日签到，请工作人员确认。`
+          `该人员预约时段为 ${dateDisplay}，当前为非预约日签到，请工作人员确认。`
         )
       ));
     }
