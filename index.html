@@ -1326,7 +1326,7 @@ const ROLES = {
     id: 'anchor',
     name: '经销商主播',
     emoji: '🎙️',
-    desc: '8.12 + 8.15 · 14:00-18:00',
+    desc: '8.15 · 14:00-18:00',
     badge: 'badge-anchor',
     maxCompanions: 1,
     companionLabel: '随行工作人员',
@@ -1336,8 +1336,6 @@ const ROLES = {
       placeholder: '请填写 4S 店全称，如：长春一汽红旗体验中心',
     },
     slots: [
-      { date: '2026-08-12', dateLabel: '8月12日', time: '14:00-16:00', capacity: 25 },
-      { date: '2026-08-12', dateLabel: '8月12日', time: '16:00-18:00', capacity: 25 },
       { date: '2026-08-15', dateLabel: '8月15日', time: '14:00-16:00', capacity: 25 },
       { date: '2026-08-15', dateLabel: '8月15日', time: '16:00-18:00', capacity: 25 },
     ],
@@ -1382,7 +1380,7 @@ const ROLES = {
     id: 'media',
     name: '媒体',
     emoji: '📰',
-    desc: '8月13日 + 8月14日',
+    desc: '8月12日 + 8月13日 + 8月14日',
     badge: 'badge-media',
     maxCompanions: 2,
     companionLabel: '随行工作人员',
@@ -1399,6 +1397,9 @@ const ROLES = {
       ],
     },
     slots: [
+      // 8 月 12 日（原经销商主播时段迁入）
+      { date: '2026-08-12', dateLabel: '8月12日', time: '14:00-16:00', capacity: 25 },
+      { date: '2026-08-12', dateLabel: '8月12日', time: '16:00-18:00', capacity: 25 },
       // 8 月 13 日
       { date: '2026-08-13', dateLabel: '8月13日', time: '10:00-12:00', capacity: 25 },
       { date: '2026-08-13', dateLabel: '8月13日', time: '12:00-14:00', capacity: 25 },
@@ -2944,9 +2945,9 @@ function parseCsvBatch() {
     const idNo = (it.item.身份证号 || '').toUpperCase().trim();
     const phone = (it.item.联系方式 || '').trim();
 
-    // 媒体身份：根据日期自动归属到 8.13 或 8.14 时段
-    const isMediaDate = (date === '2026-08-13' || date === '2026-08-14');
-    if (!isMediaDate) errors.push(`日期 ${date} 不在媒体可选日期（8.13/8.14）`);
+    // 媒体身份：根据日期自动归属到 8.12 / 8.13 / 8.14 时段
+    const isMediaDate = (date === '2026-08-12' || date === '2026-08-13' || date === '2026-08-14');
+    if (!isMediaDate) errors.push(`日期 ${date} 不在媒体可选日期（8.12/8.13/8.14）`);
 
     const role = isMediaDate ? ROLES.media : null;
     const slot = role ? role.slots.find(s => s.time === time) : null;
