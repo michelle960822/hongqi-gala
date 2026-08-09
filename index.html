@@ -2161,27 +2161,19 @@ function renderSlotList() {
   const role = ROLES[state.selectedRole];
   const isMulti = !!(role && role.allowMultiSlot);
 
-  // 多选模式下，顶部插入规则提示
-  if (isMulti) {
+  // 多选模式下，仅集团达人插入规则提示（媒体不限，无需暴露）
+  if (isMulti && role.maxSlotsPerUser) {
     const max = role.maxSlotsPerUser;
-    const isTalent = role.id === 'talent';
     list.appendChild(el('div', {
       class: 'slot-hint',
       style: 'background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.6;display:flex;align-items:flex-start;gap:8px;'
     },
       el('span', { style: 'font-size:16px;line-height:1;' }, 'ℹ️'),
       el('span', {},
-        max
-          ? el('span', {},
-              el('strong', {}, `集团达人·多选规则：`),
-              `每人最多可选 `,
-              el('strong', { style: 'color:#dc2626;' }, `${max} 个时段`),
-              `（跨天 / 跨时段均可）。已选 ${state.selectedSlots.size} / ${max}。`
-            )
-          : el('span', {},
-              el('strong', {}, '媒体·多选规则：'),
-              '可跨天同时勾选多个时段，不限数量。'
-            )
+        el('strong', {}, `集团达人·多选规则：`),
+        `每人最多可选 `,
+        el('strong', { style: 'color:#dc2626;' }, `${max} 个时段`),
+        `（跨天 / 跨时段均可）。已选 ${state.selectedSlots.size} / ${max}。`
       )
     ));
   }
@@ -3696,7 +3688,7 @@ function renderRecordList() {
       el('td', {}, r.createdAt || '—'),
       el('td', {}, el('span', { class: 'badge ' + (ROLES[r.roleId] ? ROLES[r.roleId].badge : 'badge-media') }, r.roleName)),
       el('td', {}, (r.slots && r.slots.length > 1)
-        ? el('span', { style: 'font-size:12px;' }, r.slots.map(s => `${s.dateLabel} ${s.time}`).join(' + '))
+        ? el('span', { style: 'font-size:12px;line-height:1.7;', html: r.slots.map(s => `${s.dateLabel} ${s.time}`).join('<br>') })
         : `${r.dateLabel} ${r.time}`),
       el('td', {}, r.realName),
       el('td', {}, `${platformText} · ${r.platformId}`),
