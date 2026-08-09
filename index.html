@@ -1905,7 +1905,7 @@ async function syncFromCloud(opts = {}) {
       } else if (local && local.slots && local.slots.length > 0) {
         finalSlots = local.slots;
       } else {
-        finalSlots = [{ slotIdx: r.slot_idx, date: r.date, dateLabel: r.date_label, time: r.time }];
+        finalSlots = [{ slotIdx: r.slot_idx,         date: r.date, dateLabel: r.date_label, time: r.time }];
       }
       return {
         id: r.id,
@@ -1913,7 +1913,7 @@ async function syncFromCloud(opts = {}) {
         roleId: r.role_id,
         roleName: r.role_name,
         slotIdx: r.slot_idx,
-date: r.date,
+        date: r.date,
         dateLabel: r.date_label,
         time: r.time,
         slots: finalSlots,
@@ -1925,10 +1925,10 @@ date: r.date,
         platform: r.platform ? r.platform.split('|').filter(Boolean) : [],
         followers: r.followers || '',
         compCount: r.comp_count || 0,
-      companions: r.companions ? (typeof r.companions === 'string' ? JSON.parse(r.companions) : r.companions) : [],
-      deviceId: r.device_id || '',
-      createdAt: r.created_at,
-    }));
+        companions: r.companions ? (typeof r.companions === 'string' ? JSON.parse(r.companions) : r.companions) : [],
+        deviceId: r.device_id || '',
+        createdAt: r.created_at,
+    }});
 
     // 比较是否变化
     if (JSON.stringify(newRecords) !== JSON.stringify(state.records)) {
