@@ -141,7 +141,8 @@
   }
   .slot-option.active {
     border-color: var(--primary);
-    background: var(--primary-light);
+    background: linear-gradient(135deg, var(--primary-light) 0%, rgba(200,16,46,0.08) 100%);
+    box-shadow: 0 0 0 2px rgba(200,16,46,0.18);
   }
   .slot-option.disabled {
     background: #f3f4f6;
@@ -2161,15 +2162,21 @@ function renderSlotList() {
     // 日期分组标题
     list.appendChild(el('div', { class: 'slot-group-title' },
       isMulti
-        ? el('span', { style: 'display:inline-flex;align-items:center;gap:4px;' },
-            el('span', { style: 'display:inline-block;width:16px;height:16px;border:2px solid #d1d5db;border-radius:3px;vertical-align:middle;position:relative;' },
+        ? el('span', { style: 'display:inline-flex;align-items:center;gap:6px;' },
+            el('span', { style: 'display:inline-block;width:18px;height:18px;border:2px solid #d1d5db;border-radius:4px;vertical-align:middle;' },
               ' '
             ),
             `📅 ${dateLabel}`)
         : `📅 ${dateLabel}`,
       el('span', { style: 'font-size:12px;color:var(--text-3);font-weight:400;margin-left:8px;' },
         `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 人`),
-      isMulti ? el('span', { style: 'font-size:11px;color:var(--primary);margin-left:8px;' }, '可多选') : null
+      isMulti
+        ? (() => {
+            const selectedCount = items.filter(it => state.selectedSlots.has(it.idx)).length;
+            if (selectedCount === 0) return el('span', { style: 'font-size:11px;color:var(--primary);margin-left:8px;' }, '可多选');
+            return el('span', { style: 'font-size:11px;color:#fff;background:var(--primary);margin-left:8px;padding:2px 10px;border-radius:10px;font-weight:600;' }, `已选 ${selectedCount} / ${items.length}`);
+          })()
+        : null
     ));
     // 网格
     const grid = el('div', { class: 'slot-list' });
@@ -2184,19 +2191,20 @@ function renderSlotList() {
       if (isFull) quotaCls = 'full';
       else if (ratio >= 0.8) quotaCls = 'warn';
 
-      const cbStyle = `display:inline-block;width:14px;height:14px;border:2px solid ${isActive ? 'var(--primary)' : '#d1d5db'};border-radius:3px;background:${isActive ? 'var(--primary)' : '#fff'};margin-right:6px;flex-shrink:0;position:relative;vertical-align:middle;`;
-      const checkmark = isActive ? '<svg viewBox="0 0 14 14" style="position:absolute;top:-2px;left:-2px;width:14px;height:14px;"><polyline points="3,7 6,10 11,4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
+      const cbStyle = `display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:2px solid ${isActive ? 'var(--primary)' : '#cbd5e1'};border-radius:5px;background:${isActive ? 'var(--primary)' : '#fff'};margin-right:8px;flex-shrink:0;box-shadow:${isActive ? '0 0 0 3px rgba(200,16,46,0.15)' : 'none'};transition:all 0.15s;`;
+      const checkmark = isActive ? '<svg viewBox="0 0 16 16" style="width:14px;height:14px;"><polyline points="3,8 6,11 13,4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
       const checkbox = isMulti
-        ? el('span', { innerHTML: `<span style="${cbStyle}">${checkmark}</span>` })
+        ? el('span', { html: `<span style="${cbStyle}">${checkmark}</span>` })
         : null;
 
       const opt = el('div', {
         class: 'slot-option' + (isActive ? ' active' : '') + (isFull ? ' disabled' : ''),
         onclick: () => { if (!isFull) selectSlot(idx); },
       },
-        el('div', {},
+        el('div', { style: 'display:flex;align-items:center;flex:1;min-width:0;' },
           checkbox,
           el('span', { class: 'time' }, slot.time),
+          isMulti && isActive ? el('span', { style: 'margin-left:8px;font-size:11px;color:var(--primary);font-weight:600;background:#fff;border:1px solid var(--primary);border-radius:10px;padding:1px 8px;' }, '已选') : null,
         ),
         el('div', { class: 'quota ' + quotaCls },
           isFull
