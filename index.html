@@ -1894,29 +1894,39 @@ async function syncFromCloud(opts = {}) {
   let changed = false;
   if (recResp && Array.isArray(recResp.records)) {
     // 转换服务器字段名 → 前端字段名
-    const newRecords = recResp.records.map(r => ({
-      id: r.id,
-      rid: r.id,
-      roleId: r.role_id,
-      roleName: r.role_name,
-      slotIdx: r.slot_idx,
-      date: r.date,
-      dateLabel: r.date_label,
-      time: r.time,
-      category: r.category || '',
-      realName: r.real_name,
-      idNumber: r.id_number,
-      phone: r.phone,
-      platformId: r.platform_id || '',
-      platform: r.platform ? r.platform.split('|').filter(Boolean) : [],
-      followers: r.followers || '',
-      compCount: r.comp_count || 0,
+    const newRecords = recResp.records.map(r => {
+      const cloudSlots = (r.slots && (typeof r.slots === 'string' ? JSON.parse(r.slots) : r.slots)) || null;
+      // 查找本地同 id 记录，保留本地 multi-slot 数据
+      const local = state.records.find(x => x.id === r.id);
+      let finalSlots;
+      if (cloudSlots && cloudSlots.length > 0) {
+        finalSlots = cloudSlots;
+      } else if (local && local.slots && local.slots.length > 0) {
+        finalSlots = local.slots;
+      } else {
+        finalSlots = [{ slotIdx: r.slot_idx, date: r.date, dateLabel: r.date_label, time: r.time }];
+      }
+      return {
+        id: r.id,
+        rid: r.id,
+        roleId: r.role_id,
+        roleName: r.role_name,
+        slotIdx: r.slot_idx,
+date: r.date,
+        dateLabel: r.date_label,
+        time: r.time,
+        slots: finalSlots,
+        category: r.category || '',
+        realName: r.real_name,
+        idNumber: r.id_number,
+        phone: r.phone,
+        platformId: r.platform_id || '',
+        platform: r.platform ? r.platform.split('|').filter(Boolean) : [],
+        followers: r.followers || '',
+        compCount: r.comp_count || 0,
       companions: r.companions ? (typeof r.companions === 'string' ? JSON.parse(r.companions) : r.companions) : [],
       deviceId: r.device_id || '',
       createdAt: r.created_at,
-      // multi-slot: cloud 可能存 JSON 或逗号分隔，兼容降级
-      slots: (r.slots && (typeof r.slots === 'string' ? JSON.parse(r.slots) : r.slots))
-        || [{ slotIdx: r.slot_idx, date: r.date, dateLabel: r.date_label, time: r.time }],
     }));
 
     // 比较是否变化
@@ -2204,7 +2214,6 @@ function renderSlotList() {
         el('div', { style: 'display:flex;align-items:center;flex:1;min-width:0;' },
           checkbox,
           el('span', { class: 'time' }, slot.time),
-          isMulti && isActive ? el('span', { style: 'margin-left:8px;font-size:11px;color:var(--primary);font-weight:600;background:#fff;border:1px solid var(--primary);border-radius:10px;padding:1px 8px;' }, '已选') : null,
         ),
         el('div', { class: 'quota ' + quotaCls },
           isFull

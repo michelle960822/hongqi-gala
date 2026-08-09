@@ -145,12 +145,13 @@ async function createRecord(request, env) {
   try {
     await env.DB.prepare(`
       INSERT INTO records (
-        id, role_id, role_name, slot_idx, date, date_label, time,
+        id, role_id, role_name, slot_idx, date, date_label, time, slots,
         category, real_name, id_number, phone, id_hmac, phone_hmac, id_masked, phone_masked,
         platform_id, platform, followers, comp_count, companions, device_id, created_at, retention_until
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       r.id, r.roleId, r.roleName, r.slotIdx, r.date, r.dateLabel, r.time,
+      (Array.isArray(r.slots) ? JSON.stringify(r.slots) : (typeof r.slots === 'string' ? r.slots : null)),
       r.category || '', r.realName, idCipher, phoneCipher, idHmac, phoneHmac, idMasked, phoneMasked,
       r.platformId || '', Array.isArray(r.platform) ? r.platform.join('|') : (r.platform || ''),
       r.followers || '', (Array.isArray(r.companions) ? r.companions.length : 0),
@@ -297,6 +298,7 @@ async function ensureSchema(env) {
         date        TEXT NOT NULL,
         date_label  TEXT NOT NULL,
         time        TEXT NOT NULL,
+        slots       TEXT,
         category    TEXT,
         real_name   TEXT NOT NULL,
         id_number   TEXT NOT NULL,
@@ -324,6 +326,7 @@ async function ensureSchema(env) {
     'ALTER TABLE records ADD COLUMN id_masked TEXT',
     'ALTER TABLE records ADD COLUMN phone_masked TEXT',
     'ALTER TABLE records ADD COLUMN retention_until TEXT',
+    'ALTER TABLE records ADD COLUMN slots TEXT',
   ];
   for (const sql of additions) {
     try { await env.DB.prepare(sql).run(); } catch (e) { /* 已存在 */ }
