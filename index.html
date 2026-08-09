@@ -951,7 +951,8 @@
   .badge-card .qr svg { width: 100%; height: 100%; display: block; }
   .badge-card .info {
     flex: 1; min-width: 0;
-    display: flex; flex-direction: column; justify-content: center;
+    display: flex; flex-direction: column; justify-content: flex-start;
+    align-self: stretch;
   }
   .badge-card .info .label {
     font-size: 6pt; color: #999; line-height: 1.2; margin-bottom: 1mm;
@@ -963,6 +964,7 @@
   .badge-card .info .code {
     font-size: 8pt; color: #666; line-height: 1.2;
     word-break: break-all; overflow-wrap: break-word;
+    margin-top: auto;
   }
   @media print {
     .badge-page { background: #fff; padding: 0; }
@@ -3795,10 +3797,10 @@ function buildBadgesHtml(records) {
   .badge-card { width: 60mm; height: 30mm; border: 0.5px dashed #ccc; box-sizing: border-box; padding: 2mm 3mm; background: #fff; display: flex; align-items: center; gap: 3mm; page-break-inside: avoid; overflow: hidden; }
   .badge-card .qr { width: 24mm; height: 24mm; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .badge-card .qr svg { width: 100%; height: 100%; display: block; }
-  .badge-card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  .badge-card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-start; align-self: stretch; }
   .badge-card .info .label { font-size: 6pt; color: #999; line-height: 1.2; margin-bottom: 1mm; }
   .badge-card .info .pid { font-size: 10pt; color: #111; font-weight: 600; line-height: 1.2; word-break: break-all; overflow-wrap: break-word; }
-  .badge-card .info .code { font-size: 8pt; color: #666; line-height: 1.2; }
+  .badge-card .info .code { font-size: 8pt; color: #666; line-height: 1.2; margin-top: auto; }
   @media print {
     .badge-page { background: #fff; padding: 0; }
     .badge-toolbar { display: none; }
