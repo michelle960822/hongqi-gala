@@ -1377,6 +1377,7 @@ const ROLES = {
       { date: '2026-08-15', dateLabel: '8月15日', time: '10:00-14:00', capacity: 30 },
     ],
     allowMultiSlot: true,  // 达人可同时选多个时段
+    maxSlotsPerUser: 2,   // 每人最多选 2 个时段
   },
   media: {
     id: 'media',
@@ -2160,6 +2161,31 @@ function renderSlotList() {
   const role = ROLES[state.selectedRole];
   const isMulti = !!(role && role.allowMultiSlot);
 
+  // 多选模式下，顶部插入规则提示
+  if (isMulti) {
+    const max = role.maxSlotsPerUser;
+    const isTalent = role.id === 'talent';
+    list.appendChild(el('div', {
+      class: 'slot-hint',
+      style: 'background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.6;display:flex;align-items:flex-start;gap:8px;'
+    },
+      el('span', { style: 'font-size:16px;line-height:1;' }, 'ℹ️'),
+      el('span', {},
+        max
+          ? el('span', {},
+              el('strong', {}, `集团达人·多选规则：`),
+              `每人最多可选 `,
+              el('strong', { style: 'color:#dc2626;' }, `${max} 个时段`),
+              `（跨天 / 跨时段均可）。已选 ${state.selectedSlots.size} / ${max}。`
+            )
+          : el('span', {},
+              el('strong', {}, '媒体·多选规则：'),
+              '可跨天同时勾选多个时段，不限数量。'
+            )
+      )
+    ));
+  }
+
   // 按日期分组渲染
   const groups = {};
   role.slots.forEach((slot, idx) => {
@@ -2471,6 +2497,12 @@ function selectSlot(idx) {
     if (state.selectedSlots.has(idx)) {
       state.selectedSlots.delete(idx);
     } else {
+      // 超出时段数上限拦截（仅对未勾选的操作生效）
+      const max = role.maxSlotsPerUser;
+      if (max && state.selectedSlots.size >= max) {
+        toast(`「${role.name}」每人最多选 ${max} 个时段，请先取消一个再选`, 'warn');
+        return;
+      }
       state.selectedSlots.add(idx);
     }
     // 兼容单选字段：取第一个
