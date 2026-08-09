@@ -2018,6 +2018,23 @@ function getSlotUsed(roleId, slotIdx) {
   }).length;
 }
 
+/** 格式化记录的时段信息：多时段用、分隔，否则用默认字段 */
+function formatSlots(r) {
+  if (!r) return '—';
+  if (r.slots && r.slots.length > 0) {
+    return r.slots.map(s => `${s.dateLabel} ${s.time}`).join('、');
+  }
+  return `${r.dateLabel || ''} ${r.time || ''}`;
+}
+
+function formatSlotsShort(r) {
+  if (!r) return '—';
+  if (r.slots && r.slots.length > 1) {
+    return r.slots.map(s => s.dateLabel).join('、') + ' ' + r.slots.map(s => s.time).join('、');
+  }
+  return `${r.dateLabel || ''} ${r.time || ''}`;
+}
+
 /* 生成 6 位纯数字 record id（易记易输入，100万组合，活动场景足够）
  * 100000-999999 范围；同号重试（最坏情况下连续冲突极罕见）
  */
@@ -2143,7 +2160,13 @@ function renderSlotList() {
   Object.entries(groups).forEach(([dateLabel, items]) => {
     // 日期分组标题
     list.appendChild(el('div', { class: 'slot-group-title' },
-      `${isMulti ? '☐ ' : ''}📅 ${dateLabel}`,
+      isMulti
+        ? el('span', { style: 'display:inline-flex;align-items:center;gap:4px;' },
+            el('span', { style: 'display:inline-block;width:16px;height:16px;border:2px solid #d1d5db;border-radius:3px;vertical-align:middle;position:relative;' },
+              ' '
+            ),
+            `📅 ${dateLabel}`)
+        : `📅 ${dateLabel}`,
       el('span', { style: 'font-size:12px;color:var(--text-3);font-weight:400;margin-left:8px;' },
         `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 人`),
       isMulti ? el('span', { style: 'font-size:11px;color:var(--primary);margin-left:8px;' }, '可多选') : null
@@ -2161,8 +2184,10 @@ function renderSlotList() {
       if (isFull) quotaCls = 'full';
       else if (ratio >= 0.8) quotaCls = 'warn';
 
+      const cbStyle = `display:inline-block;width:14px;height:14px;border:2px solid ${isActive ? 'var(--primary)' : '#d1d5db'};border-radius:3px;background:${isActive ? 'var(--primary)' : '#fff'};margin-right:6px;flex-shrink:0;position:relative;vertical-align:middle;`;
+      const checkmark = isActive ? '<svg viewBox="0 0 14 14" style="position:absolute;top:-2px;left:-2px;width:14px;height:14px;"><polyline points="3,7 6,10 11,4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
       const checkbox = isMulti
-        ? el('span', { style: 'margin-right:4px;font-size:14px;' }, isActive ? '☑' : '☐')
+        ? el('span', { innerHTML: `<span style="${cbStyle}">${checkmark}</span>` })
         : null;
 
       const opt = el('div', {
@@ -2548,7 +2573,7 @@ function isDuplicate(idNumber, phone) {
   const dupMain = state.records.find(r =>
     r.idNumber.toUpperCase() === idUp || r.phone === ph
   );
-  if (dupMain) return `该身份证或手机号已被【${dupMain.realName}】报名（${dupMain.dateLabel} ${dupMain.time}）`;
+  if (dupMain) return `该身份证或手机号已被【${dupMain.realName}】报名（${formatSlots(dupMain)}）`;
   // 2. 随行人员身份证或手机号已在主报名人或随行人员中出现
   const allIds = new Set();
   const allPhones = new Set();
@@ -2860,7 +2885,7 @@ function renderAdminVisitLog() {
     list.appendChild(el('div', { class: 'log-item' },
       el('span', { class: 'badge-pt' }, v.point || '—'),
       nameEl,
-      r ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, `${r.dateLabel} ${r.time}`) : null,
+      r ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, formatSlots(r)) : null,
       v.operator ? el('span', { style: 'font-size:11px;color:var(--text-3);' }, '@' + v.operator) : null,
       el('span', { class: 'ts' }, v.ts || '')
     ));
@@ -3029,11 +3054,11 @@ function parseCsvBatch() {
     // 关键修复 3：与已存在报名查重（身份证 + 手机）
     if (idNo && existingIds.has(idNo)) {
       const exist = existingIdMap.get(idNo);
-      errors.push(`该身份证号已报名：${exist.realName}（${exist.dateLabel} ${exist.time}）`);
+      errors.push(`该身份证号已报名：${exist.realName}（${formatSlots(exist)}）`);
     }
     if (phone && state.records.some(r => r.phone === phone)) {
       const exist = state.records.find(r => r.phone === phone);
-      errors.push(`该手机号已报名：${exist.realName}（${exist.dateLabel} ${exist.time}）`);
+      errors.push(`该手机号已报名：${exist.realName}（${formatSlots(exist)}）`);
     }
 
     // 名额检查
@@ -3143,54 +3168,85 @@ function renderCsvPreview(validItems, invalidItems) {
 }
 
 function commitBatchImport(validItems) {
-  if (!confirm(`确认导入 ${validItems.length} 条媒体记录？`)) return;
+  // 按身份证号分组，同一个人不同日期的行自动合并为 multi-slot
+  const groups = new Map(); // idNo → items[]
+  validItems.forEach(it => {
+    const idNo = (it.item.身份证号 || '').toUpperCase().trim();
+    if (!groups.has(idNo)) groups.set(idNo, []);
+    groups.get(idNo).push(it);
+  });
+
+  const mergedCount = validItems.length;
+  const recordCount = groups.size;
+  const promptMsg = recordCount < mergedCount
+    ? `${mergedCount} 行数据已自动合并为 ${recordCount} 条记录（同身份证不同日期的行已合并），确认导入？`
+    : `确认导入 ${validItems.length} 条媒体记录？`;
+  if (!confirm(promptMsg)) return;
+
   const deviceId = 'batch_import_' + Date.now();
   const platformArr = v => v ? v.split(/[+、,，;；\/]/).map(s => s.trim()).filter(Boolean) : [];
   const newRecordIds = [];
-  validItems.forEach(it => {
-    const role = ROLES[it.roleId];
-    const slot = role.slots[it.slotIdx];
-    const compCount = parseInt(it.item.随行人员数量 || '0', 10);
+
+  groups.forEach((items, idNo) => {
+    const base = items[0];
+    const role = ROLES[base.roleId];
+    const compCount = parseInt(base.item.随行人员数量 || '0', 10);
     const companions = [];
-    if (compCount >= 1 && it.item.随行1姓名) {
+    if (compCount >= 1 && base.item.随行1姓名) {
       companions.push({
-        name: it.item.随行1姓名,
-        idNumber: (it.item.随行1身份证 || '').toUpperCase(),
-        phone: it.item.随行1电话 || '',
+        name: base.item.随行1姓名,
+        idNumber: (base.item.随行1身份证 || '').toUpperCase(),
+        phone: base.item.随行1电话 || '',
       });
     }
-    if (compCount >= 2 && it.item.随行2姓名) {
+    if (compCount >= 2 && base.item.随行2姓名) {
       companions.push({
-        name: it.item.随行2姓名,
-        idNumber: (it.item.随行2身份证 || '').toUpperCase(),
-        phone: it.item.随行2电话 || '',
+        name: base.item.随行2姓名,
+        idNumber: (base.item.随行2身份证 || '').toUpperCase(),
+        phone: base.item.随行2电话 || '',
       });
     }
+
+    // 构建 slots 数组（同人不同日期）
+    const slots = items.map(it => {
+      const s = role.slots[it.slotIdx];
+      return { slotIdx: it.slotIdx, date: s.date, dateLabel: s.dateLabel, time: s.time };
+    });
+    // 去重（同日期同时段只保留一个）
+    const seen = new Set();
+    const uniqueSlots = slots.filter(s => {
+      const k = `${s.dateLabel}|${s.time}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+
+    const primarySlot = role.slots[base.slotIdx];
     const record = {
       id: genRecordId(),
-      roleId: it.roleId,
+      roleId: base.roleId,
       roleName: role.name,
-      slotIdx: it.slotIdx,
-      date: slot.date,
-      dateLabel: slot.dateLabel,
-      time: slot.time,
-      category: it.item.类别,
-      platformId: it.item.平台ID,
-      platform: platformArr(it.item.主要发布平台),
-      followers: it.item['粉丝数(万)'] || '',
-      realName: it.item.真实姓名,
-      idNumber: it.item.身份证号.toUpperCase(),
-      phone: it.item.联系方式,
+      slotIdx: base.slotIdx,
+      date: primarySlot.date,
+      dateLabel: primarySlot.dateLabel,
+      time: primarySlot.time,
+      slots: uniqueSlots,
+      category: base.item.类别,
+      platformId: base.item.平台ID,
+      platform: platformArr(base.item.主要发布平台),
+      followers: base.item['粉丝数(万)'] || '',
+      realName: base.item.真实姓名,
+      idNumber: idNo,
+      phone: base.item.联系方式,
       deviceId,
       compCount,
       companions,
       createdAt: formatDateTime(),
       importedBy: 'batch',
     };
-    // 错开 id 时间避免冲突
+
     state.records.push(record);
     newRecordIds.push(record.id);
-    // 关键修复：同步到云端（之前漏了，导致 sync 覆盖为空）
     apiPost('/api/records', {
       id: record.id,
       roleId: record.roleId,
@@ -3199,6 +3255,7 @@ function commitBatchImport(validItems) {
       date: record.date,
       dateLabel: record.dateLabel,
       time: record.time,
+      slots: JSON.stringify(record.slots),
       category: record.category,
       platformId: record.platformId,
       platform: record.platform,
@@ -3211,9 +3268,7 @@ function commitBatchImport(validItems) {
       companions: record.companions,
       createdAt: record.createdAt,
     }).then(resp => {
-      if (resp && resp.__error) {
-        console.warn('[batch] 云端同步失败：', resp);
-      }
+      if (resp && resp.__error) console.warn('[batch] 云端同步失败：', resp);
     });
   });
   saveRecords();
@@ -3223,7 +3278,7 @@ function commitBatchImport(validItems) {
   renderRecordList();
   renderAdmin();
   renderStats();
-  toast(`✅ 已导入 ${validItems.length} 条记录，QR 码已显示在「📋 报名列表」中（已自动勾选）`, 'success');
+  toast(`✅ 已导入 ${recordCount} 条记录${mergedCount > recordCount ? `（${mergedCount} 行已自动合并）` : ''}，QR 码已显示在「📋 报名列表」中（已自动勾选）`, 'success');
   document.getElementById('csvInput').value = '';
   document.getElementById('csvPreview').innerHTML = '';
   // 滚动到报名列表 + 高亮新行
@@ -3296,7 +3351,7 @@ function generateBulkQR() {
       el('div', { class: 'qr-box', html: svgStr }),
       el('div', { class: 'qr-grid-meta' },
         el('div', { class: 'name' }, r.realName),
-        el('div', { class: 'meta' }, `${r.dateLabel} ${r.time}`),
+        el('div', { class: 'meta' }, formatSlots(r)),
         el('div', { class: 'meta' }, platformText),
         el('div', { class: 'meta-id' }, r.id),
       ),
@@ -3326,7 +3381,7 @@ function downloadBulkQRHtml(records) {
       <div class="card">
         <div class="qr">${svgStr}</div>
         <div class="name">${escapeHtml(r.realName)}</div>
-        <div class="meta">${escapeHtml(r.roleName)} · ${escapeHtml(r.dateLabel)} ${escapeHtml(r.time)}</div>
+        <div class="meta">${escapeHtml(r.roleName)} · ${escapeHtml(formatSlots(r))}</div>
         <div class="meta">${escapeHtml(platformText)} · ${escapeHtml(r.platformId || '—')}</div>
         <div class="id">${escapeHtml(r.id)}</div>
       </div>
@@ -3690,6 +3745,9 @@ function findOrHydrateRecord(rid, dPayload) {
   if (r) return r;
   // 本地没有该 record，但 URL 中携带了完整数据 → 临时构造（不持久化，等待 confirmCheckin 时再存）
   if (dPayload && dPayload.rid === rid) {
+    const slots = dPayload.sl && dPayload.sl.length
+      ? dPayload.sl.map(s => { const [dl, tm] = s.split(' '); return { dateLabel: dl, time: tm || '', date: '', slotIdx: -1 }; })
+      : (dPayload.d ? [{ dateLabel: dPayload.d, time: dPayload.t || '', date: '', slotIdx: -1 }] : []);
     return {
       id: dPayload.rid,
       realName: dPayload.n || '—',
@@ -3699,6 +3757,7 @@ function findOrHydrateRecord(rid, dPayload) {
       roleId: '',
       time: dPayload.t || '',
       dateLabel: dPayload.d || '',
+      slots: slots.length > 1 ? slots : undefined,
       phone: dPayload.ph || '',
       compCount: 0,
       companions: [],
@@ -3928,9 +3987,12 @@ function exportVisitLogDetail() {
     const platformText = Array.isArray(r.platform) ? r.platform.join('、') : (r.platform || '');
     const firstTs = logs[0] ? logs[0].ts : '';
     const firstDate = firstTs ? firstTs.slice(0, 10) : '';
-    const inSlot = firstDate ? (firstDate === r.date ? '是' : '否') : '（未签到）';
+    const dates = (r.slots && r.slots.length > 0) ? r.slots.map(s => s.date) : [r.date];
+    const inSlot = firstDate ? (dates.includes(firstDate) ? '是' : '否') : '（未签到）';
+    const dateDisplay = (r.slots && r.slots.length > 1) ? r.slots.map(s => s.dateLabel).join('、') : r.dateLabel;
+    const timeDisplay = (r.slots && r.slots.length > 1) ? r.slots.map(s => s.time).join('、') : r.time;
     return [
-      r.id, r.roleName, r.dateLabel, r.time, r.realName, platformText, r.platformId || '', r.phone || '',
+      r.id, r.roleName, dateDisplay, timeDisplay, r.realName, platformText, r.platformId || '', r.phone || '',
       pointSummary,
       firstTs,
       firstDate,
@@ -4552,7 +4614,7 @@ function showDeviceLockedModal(firstRecord, allDeviceRecords) {
       el('div', { class: 'name' }, firstRecord.realName),
       el('div', { class: 'meta' },
         el('div', {}, el('strong', {}, '身份：'), ROLES[firstRecord.roleId] ? ROLES[firstRecord.roleId].name : firstRecord.roleName),
-        el('div', {}, el('strong', {}, '拍摄时段：'), `${firstRecord.dateLabel} ${firstRecord.time}`),
+        el('div', {}, el('strong', {}, '拍摄时段：'), formatSlots(firstRecord)),
         el('div', {}, el('strong', {}, '联系方式：'), firstRecord.phone),
         el('div', {}, el('strong', {}, '提交时间：'), firstRecord.createdAt),
       )
@@ -4833,9 +4895,9 @@ function renderMyAutoList() {
     })[r.roleId] || 'role-badge';
 
     // 构建"场次信息"行：📅 日期 + ⏰ 时段 + 🚗 车型/类别
+    const slotText = formatSlots(r);
     const sessionInfo = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:10px;font-size:12px;color:var(--text-2);' },
-      el('span', { class: 'session-chip' }, '📅 ', r.dateLabel || '—'),
-      el('span', { class: 'session-chip' }, '⏰ ', r.time || '—'),
+      el('span', { class: 'session-chip' }, '📅 ', slotText),
       r.category ? el('span', { class: 'session-chip cat' }, (r.roleId === 'media' ? '🚗 ' : '🏪 ') + r.category) : null
     );
 
@@ -4923,7 +4985,7 @@ function showDeleteOwnRecordModal(record) {
         el('div', { style: 'font-weight:600;margin-bottom:4px;' }, '⚠️ 报名信息'),
         el('div', {}, '姓名：', el('span', { style: 'font-weight:600;' }, record.realName || '—')),
         el('div', {}, '平台ID：', el('span', { style: 'font-weight:600;' }, record.platformId || '—')),
-        el('div', {}, '时段：', el('span', { style: 'font-weight:600;' }, `${record.dateLabel || ''} ${record.time || ''}`))
+        el('div', {}, '时段：', el('span', { style: 'font-weight:600;' }, formatSlots(record)))
       ),
       el('div', { style: 'font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:12px;' },
         '删除后该名额会立即释放，原二维码将失效。',
