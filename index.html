@@ -2123,7 +2123,7 @@ function renderRoleGrid() {
     },
       el('div', { class: 'emoji' }, role.emoji),
       el('div', { class: 'name' }, role.name),
-      role.nameSub ? el('div', { style: 'font-size:11px;color:var(--text-3);text-align:center;margin-top:2px;' }, role.nameSub) : null,
+      role.nameSub ? el('div', { style: 'font-size:11px;color:var(--text-3);margin-top:2px;' }, role.nameSub) : null,
       el('div', { class: 'desc' }, role.desc),
       el('div', { class: 'remain' + (isFull ? ' full' : '') },
         el('span', { class: 'dot' }),
