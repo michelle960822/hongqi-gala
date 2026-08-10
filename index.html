@@ -1471,6 +1471,7 @@ let state = {
   currentCheckin: null,   // 当前正在签到的人员（record id）
   deviceId: null,         // 当前设备的唯一标识
   selectedRecords: new Set(), // admin 表格中多选的 record id
+  adminPage: 0,            // 报名管理分页（每页 30 条）
   _pendingQrRecord: null, // QR 扫码带过来的临时 record，签到时持久化
 };
 
@@ -3672,7 +3673,11 @@ function renderRecordList() {
 
   const tbody = el('tbody');
   const sorted = [...state.records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  sorted.forEach(r => {
+  const PAGE_SIZE = 30;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  if (state.adminPage >= totalPages) state.adminPage = totalPages - 1;
+  const pageSlice = sorted.slice(state.adminPage * PAGE_SIZE, (state.adminPage + 1) * PAGE_SIZE);
+  pageSlice.forEach(r => {
     const compText = r.compCount > 0
       ? r.companions.map(c =>
           `${c.name}（${maskIdNumber(c.idNumber)} / ${c.phone ? maskPhone(c.phone) : ''}）`
@@ -3748,6 +3753,29 @@ function renderRecordList() {
   tbl.appendChild(tbody);
   tableScroll.appendChild(tbl);
   wrap.appendChild(tableScroll);
+
+  // 分页栏
+  if (totalPages > 1) {
+    const pager = el('div', {
+      style: 'display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;font-size:13px;color:var(--text-2);'
+    },
+      el('button', {
+        class: 'btn btn-ghost',
+        style: 'font-size:12px;',
+        disabled: state.adminPage <= 0,
+        onclick: () => { state.adminPage--; renderRecordList(); }
+      }, '← 上一页'),
+      el('span', {}, `第 ${state.adminPage + 1} / ${totalPages} 页 · 共 ${sorted.length} 条`),
+      el('button', {
+        class: 'btn btn-ghost',
+        style: 'font-size:12px;',
+        disabled: state.adminPage >= totalPages - 1,
+        onclick: () => { state.adminPage++; renderRecordList(); }
+      }, '下一页 →')
+    );
+    wrap.appendChild(pager);
+  }
+
   updateBatchBar();
 }
 
