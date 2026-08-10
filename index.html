@@ -3102,9 +3102,7 @@ function parseCsvBatch() {
     }
 
     if (errors.length === 0) {
-      const slotIdx = role ? role.slots.indexOf(slot) : null;
-      console.log('[batch-debug] row', it.rowIndex, '→', date, time, 'slotIdx=', slotIdx, 'idNo=', idNo);
-      validItems.push({ ...it, roleId: 'media', slotIdx });
+      validItems.push({ ...it, roleId: 'media', slotIdx: role ? role.slots.indexOf(slot) : null });
     } else {
       invalidItems.push({ ...it, errors });
     }
@@ -3214,10 +3212,21 @@ function commitBatchImport(validItems) {
 
   const mergedCount = validItems.length;
   const recordCount = groups.size;
-  const promptMsg = recordCount < mergedCount
-    ? `${mergedCount} 行数据已自动合并为 ${recordCount} 条记录（同身份证不同日期的行已合并），确认导入？`
-    : `确认导入 ${validItems.length} 条媒体记录？`;
+
+  // 检测已有媒体记录：导入前先清理，避免旧数据干扰
+  const oldMediaRecords = state.records.filter(r => r.roleId === 'media');
+  const promptMsg = (oldMediaRecords.length > 0
+    ? `⚠️ 检测到已有 ${oldMediaRecords.length} 条媒体记录。导入将先清空旧数据，以本次导入的 ${recordCount} 条为准。确认继续？`
+    : (recordCount < mergedCount
+      ? `${mergedCount} 行数据已自动合并为 ${recordCount} 条记录（同身份证不同日期的行已合并），确认导入？`
+      : `确认导入 ${recordCount} 条媒体记录？`));
   if (!confirm(promptMsg)) return;
+
+  // 清空旧媒体记录
+  if (oldMediaRecords.length > 0) {
+    oldMediaRecords.forEach(r => apiDelete('/api/records/' + encodeURIComponent(r.id)));
+    state.records = state.records.filter(r => r.roleId !== 'media');
+  }
 
   const deviceId = 'batch_import_' + Date.now();
   const platformArr = v => v ? v.split(/[+、,，;；\/]/).map(s => s.trim()).filter(Boolean) : [];
@@ -3248,7 +3257,6 @@ function commitBatchImport(validItems) {
       const s = role.slots[it.slotIdx];
       return { slotIdx: it.slotIdx, date: s.date, dateLabel: s.dateLabel, time: s.time };
     });
-    console.log('[batch-debug] group idNo=', idNo, 'rows=', items.length, 'slots=', slots.map(s => s.slotIdx).join(','));
     // 去重（同日期同时段只保留一个）
     const seen = new Set();
     const uniqueSlots = slots.filter(s => {
@@ -3284,7 +3292,6 @@ function commitBatchImport(validItems) {
 
     state.records.push(record);
     newRecordIds.push(record.id);
-    console.log('[batch-debug] SAVED record id=', record.id, 'name=', record.realName, 'slotIdx=', record.slotIdx, 'slots=', record.slots.map(s => s.slotIdx).join(','));
     apiPost('/api/records', {
       id: record.id,
       roleId: record.roleId,
