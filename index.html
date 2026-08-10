@@ -3066,7 +3066,7 @@ function parseCsvBatch() {
     if (!isMediaDate) errors.push(`日期 ${date} 不在媒体可选日期（8.12/8.13/8.14）`);
 
     const role = isMediaDate ? ROLES.media : null;
-    const slot = role ? role.slots.find(s => s.time === time) : null;
+    const slot = role ? role.slots.find(s => s.date === date && s.time === time) : null;
     if (role && !slot) errors.push(`时间段 ${time} 不在该身份可选时段`);
 
     // 必填
