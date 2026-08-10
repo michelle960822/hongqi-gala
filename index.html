@@ -3021,16 +3021,19 @@ function parseCsvBatch() {
   const validItems = [];
   const invalidItems = [];
 
-  // 关键修复 1：CSV 内部查重（同一份表格内身份证号不能重复）
-  const seenIdNos = new Map(); // idNumber -> 第一个出现的 rowIndex
+  // CSV 内部查重：同身份证 + 同日期 + 同时段才算真重复（跨天跨时段是合法的 multi-slot）
+  const seenIdSlots = new Map(); // `${idNo}|${date}|${time}` → rowIndex
   items.forEach(it => {
     const idNo = (it.item.身份证号 || '').toUpperCase().trim();
+    const date = it.item.日期;
+    const time = it.item.时间段;
     if (idNo && /^\d{17}[\dXx]$/.test(idNo)) {
-      if (seenIdNos.has(idNo)) {
+      const key = `${idNo}|${date}|${time}`;
+      if (seenIdSlots.has(key)) {
         it._errors = it._errors || [];
-        it._errors.push(`与第 ${seenIdNos.get(idNo)} 行身份证号重复`);
+        it._errors.push(`与第 ${seenIdSlots.get(key)} 行内容完全重复（同人同日期同时段）`);
       } else {
-        seenIdNos.set(idNo, it.rowIndex);
+        seenIdSlots.set(key, it.rowIndex);
       }
     }
   });
