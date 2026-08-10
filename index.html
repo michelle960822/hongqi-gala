@@ -3912,16 +3912,17 @@ function exportSelectedHTML() {
   toast('📄 已导出 HTML 文件', 'success');
 }
 
-// 3. 打印胸卡（新窗口打开，A4 8 联）
+// 3. 打印胸卡（Blob URL 方式打开，确保 SVG 正常渲染）
 function openBadgesPrint() {
   const recs = getSelectedRecords();
   if (recs.length === 0) { toast('请先勾选要打印的胸卡', 'warn'); return; }
   const html = buildBadgesHtml(recs);
-  const w = window.open('', '_blank');
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
   if (!w) { toast('浏览器拦截了新窗口，请允许弹窗', 'error'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  // Blob URL 用完稍后释放
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 function buildQrGridHtml(records, title) {
@@ -4039,13 +4040,7 @@ function buildBadgesHtml(records) {
 </div>
 <script>
   function delayedPrint() {
-    var svgs = document.querySelectorAll('svg');
-    if (svgs.length === 0) { window.print(); return; }
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
-        setTimeout(function() { window.print(); }, 200);
-      });
-    });
+    setTimeout(function() { window.print(); }, 600);
   }
 </script>
 </body>
