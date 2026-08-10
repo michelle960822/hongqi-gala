@@ -2005,22 +2005,13 @@ function getSlotKey(roleId, slotIdx) { return `${roleId}#${slotIdx}`; }
 
 function getSlotUsed(roleId, slotIdx) {
   // 向后兼容：优先从 records.slots 数组计算，无则用旧字段
-  const matched = state.records.filter(r => {
+  return state.records.filter(r => {
     if (r.roleId !== roleId) return false;
     if (r.slots && r.slots.length > 0) {
       return r.slots.some(s => s.slotIdx === slotIdx);
     }
     return r.slotIdx === slotIdx;
-  });
-  if (slotIdx === 4 && roleId === 'media') {
-    console.log('[DEBUG getSlotUsed media/4]', 'total records:', state.records.length, 'matched:', matched.length);
-    matched.forEach((r, i) => console.log(`  match[${i}]: ${r.realName} slots=`, r.slots && r.slots.map(s => s.slotIdx).join(',')));
-    // Also dump records that should match
-    const should = state.records.filter(r => r.roleId === 'media');
-    console.log('[DEBUG] all media records:');
-    should.forEach((r, i) => console.log(`  rec[${i}]: ${r.realName} slotIdx=${r.slotIdx} slots=`, r.slots && r.slots.map(s => s.slotIdx).join(',')));
-  }
-  return matched.length;
+  }).length;
 }
 
 /** 格式化记录的时段信息：多时段用、分隔，否则用默认字段 */
@@ -3111,7 +3102,9 @@ function parseCsvBatch() {
     }
 
     if (errors.length === 0) {
-      validItems.push({ ...it, roleId: 'media', slotIdx: role ? role.slots.indexOf(slot) : null });
+      const slotIdx = role ? role.slots.indexOf(slot) : null;
+      console.log('[batch-debug] row', it.rowIndex, '→', date, time, 'slotIdx=', slotIdx, 'idNo=', idNo);
+      validItems.push({ ...it, roleId: 'media', slotIdx });
     } else {
       invalidItems.push({ ...it, errors });
     }
@@ -3255,6 +3248,7 @@ function commitBatchImport(validItems) {
       const s = role.slots[it.slotIdx];
       return { slotIdx: it.slotIdx, date: s.date, dateLabel: s.dateLabel, time: s.time };
     });
+    console.log('[batch-debug] group idNo=', idNo, 'rows=', items.length, 'slots=', slots.map(s => s.slotIdx).join(','));
     // 去重（同日期同时段只保留一个）
     const seen = new Set();
     const uniqueSlots = slots.filter(s => {
@@ -3290,6 +3284,7 @@ function commitBatchImport(validItems) {
 
     state.records.push(record);
     newRecordIds.push(record.id);
+    console.log('[batch-debug] SAVED record id=', record.id, 'name=', record.realName, 'slotIdx=', record.slotIdx, 'slots=', record.slots.map(s => s.slotIdx).join(','));
     apiPost('/api/records', {
       id: record.id,
       roleId: record.roleId,
