@@ -4029,14 +4029,25 @@ function buildBadgesHtml(records) {
     <h2>🏷 平台ID贴纸 · ${records.length} 张</h2>
     <div class="stat">A4 纸张 · 60mm×30mm 贴纸 · 27 张/页（3×9）</div>
     <div style="flex:1;"></div>
-    <button class="primary" onclick="window.print()" title="打开系统打印对话框，选择「另存为 PDF」即可导出">🖨 打印</button>
-    <button onclick="window.print()" title="打开打印对话框后，选择「存储为 PDF」或「Microsoft Print to PDF」" style="background:#f0fdf4;border-color:#bbf7d0;color:#065f46;">📄 导出 PDF</button>
+    <button class="primary" onclick="delayedPrint()">🖨 打印</button>
+    <button onclick="delayedPrint()" style="background:#f0fdf4;border-color:#bbf7d0;color:#065f46;">📄 导出 PDF</button>
     <span style="font-size:11px;color:#9ca3af;">提示：点击后在打印对话框选择 PDF 即可</span>
   </div>
   <div class="badge-grid-wrap">
     <div class="badge-grid">${cards}</div>
   </div>
 </div>
+<script>
+  function delayedPrint() {
+    var svgs = document.querySelectorAll('svg');
+    if (svgs.length === 0) { window.print(); return; }
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        setTimeout(function() { window.print(); }, 200);
+      });
+    });
+  }
+</script>
 </body>
 </html>`;
 }
