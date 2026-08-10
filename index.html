@@ -3676,7 +3676,7 @@ function renderRecordList() {
     const compText = r.compCount > 0
       ? r.companions.map(c =>
           `${c.name}（${maskIdNumber(c.idNumber)} / ${c.phone ? maskPhone(c.phone) : ''}）`
-        ).join('、')
+        ).join('<br>')
       : '—';
     const platformText = Array.isArray(r.platform) ? r.platform.join('、') : (r.platform || '—');
     const isSelected = state.selectedRecords.has(r.id);
@@ -3721,7 +3721,7 @@ function renderRecordList() {
       ),
       el('td', {}, r.followers || '—'),
       el('td', {}, r.phone),
-      el('td', {}, compText),
+      el('td', { style: 'line-height:1.6;', html: compText }),
       el('td', {},
         el('button', {
           class: 'btn-danger-text',
