@@ -3021,19 +3021,25 @@ function parseCsvBatch() {
   const validItems = [];
   const invalidItems = [];
 
-  // CSV 内部查重：同身份证 + 同日期 + 同时段才算真重复（跨天跨时段是合法的 multi-slot）
-  const seenIdSlots = new Map(); // `${idNo}|${date}|${time}` → rowIndex
+  // CSV 内部查重（按身份区分）：
+  //   - 媒体：同身份证 + 同日期 + 同时段才算真重复（跨天跨时段合法，会自动合并 multi-slot）
+  //   - 达人及其他：同身份证即重复（一人只能一条记录）
+  const seenDedup = new Map(); // key → rowIndex
   items.forEach(it => {
     const idNo = (it.item.身份证号 || '').toUpperCase().trim();
     const date = it.item.日期;
     const time = it.item.时间段;
     if (idNo && /^\d{17}[\dXx]$/.test(idNo)) {
-      const key = `${idNo}|${date}|${time}`;
-      if (seenIdSlots.has(key)) {
+      const isMedia = (date === '2026-08-12' || date === '2026-08-13' || date === '2026-08-14');
+      const key = isMedia ? `${idNo}|${date}|${time}` : idNo;
+      if (seenDedup.has(key)) {
         it._errors = it._errors || [];
-        it._errors.push(`与第 ${seenIdSlots.get(key)} 行内容完全重复（同人同日期同时段）`);
+        it._errors.push(isMedia
+          ? `与第 ${seenDedup.get(key)} 行内容完全重复（同人同日期同时段）`
+          : `与第 ${seenDedup.get(key)} 行身份证号重复`
+        );
       } else {
-        seenIdSlots.set(key, it.rowIndex);
+        seenDedup.set(key, it.rowIndex);
       }
     }
   });
