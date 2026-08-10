@@ -1323,24 +1323,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 const PLATFORMS = ['抖音', '快手', '小红书', '微博', 'B站', '视频号', '其他'];
 
 const ROLES = {
-  anchor: {
-    id: 'anchor',
-    name: '经销商主播',
-    emoji: '🎙️',
-    desc: '8.15 · 14:00-18:00',
-    badge: 'badge-anchor',
-    maxCompanions: 1,
-    companionLabel: '随行工作人员',
-    categoryConfig: {
-      type: 'text',
-      label: '所属 4S 店',
-      placeholder: '请填写 4S 店全称，如：长春一汽红旗体验中心',
-    },
-    slots: [
-      { date: '2026-08-15', dateLabel: '8月15日', time: '14:00-16:00', capacity: 25 },
-      { date: '2026-08-15', dateLabel: '8月15日', time: '16:00-18:00', capacity: 25 },
-    ],
-  },
   talent: {
     id: 'talent',
     name: '集团达人',
@@ -1375,6 +1357,8 @@ const ROLES = {
       { date: '2026-08-12', dateLabel: '8月12日', time: '10:00-12:00', capacity: 25 },
       { date: '2026-08-12', dateLabel: '8月12日', time: '12:00-14:00', capacity: 25 },
       { date: '2026-08-15', dateLabel: '8月15日', time: '10:00-14:00', capacity: 30 },
+      { date: '2026-08-15', dateLabel: '8月15日', time: '14:00-16:00', capacity: 25 },
+      { date: '2026-08-15', dateLabel: '8月15日', time: '16:00-18:00', capacity: 25 },
     ],
     allowMultiSlot: true,  // 达人可同时选多个时段
     maxSlotsPerUser: 2,   // 每人最多选 2 个时段
@@ -5505,7 +5489,6 @@ function bindEvents() {
   const [roleId, slotIdxStr] = decodeURIComponent(m[1]).split('/');
   const slotIdx = parseInt(slotIdxStr, 10) || 0;
   const ROLES_CFG = {
-    anchor: { name: '经销商主播', date: '2026-08-12', dateLabel: '8月12日', time: '14:00-16:00', category: '北京中升丰鼎红旗' },
     talent: { name: '集团达人', date: '2026-08-13', dateLabel: '8月13日', time: '10:00-12:00', category: 'finance_a' },
     media:  { name: '媒体',      date: '2026-08-13', dateLabel: '8月13日', time: '10:00-12:00', category: '红旗G919' },
   };
