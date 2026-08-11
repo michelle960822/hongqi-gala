@@ -96,41 +96,7 @@ async function createRecord(request, env) {
   const idHmac = await hmacHex(idNumberPlain, hmacKey);
   const phoneHmac = await hmacHex(phonePlain, hmacKey);
 
-  // 身份证去重（用 HMAC 索引比对，不暴露明文）
-  const dupId = await env.DB.prepare(
-    'SELECT id, real_name, date_label, time FROM records WHERE id_hmac = ? LIMIT 1'
-  ).bind(idHmac).first();
-  if (dupId) {
-    return {
-      error: 'duplicate_id',
-      message: `该身份证号已报名：${dupId.real_name}（${dupId.date_label} ${dupId.time}）`
-    };
-  }
-
-  // 手机号去重
-  const dupPhone = await env.DB.prepare(
-    'SELECT id, real_name, date_label, time FROM records WHERE phone_hmac = ? LIMIT 1'
-  ).bind(phoneHmac).first();
-  if (dupPhone) {
-    return {
-      error: 'duplicate_phone',
-      message: `该手机号已报名：${dupPhone.real_name}（${dupPhone.date_label} ${dupPhone.time}）`
-    };
-  }
-
-  // 容量检查
-  const roleSlots = {
-    anchor: [25, 25, 25, 25],
-    talent: [25, 25, 30],
-    media:  [25, 25, 25, 25, 25, 25, 25, 25],
-  };
-  const cap = (roleSlots[r.roleId] && roleSlots[r.roleId][r.slotIdx]) || 25;
-  const used = await env.DB.prepare(
-    'SELECT COUNT(*) as n FROM records WHERE role_id = ? AND slot_idx = ?'
-  ).bind(r.roleId, r.slotIdx).first();
-  if (used && used.n >= cap) {
-    return { error: 'slot_full', message: `该时段已报满（${cap}/${cap}）` };
-  }
+  // 不查重：前端已处理合并/去重，服务端做纯存储（INSERT OR REPLACE 支持反复导入）
 
   // 加密 + 脱敏
   const idCipher = await aesEncrypt(idNumberPlain, aesKey);
@@ -144,7 +110,7 @@ async function createRecord(request, env) {
 
   try {
     await env.DB.prepare(`
-      INSERT INTO records (
+      INSERT OR REPLACE INTO records (
         id, role_id, role_name, slot_idx, date, date_label, time, slots,
         category, real_name, id_number, phone, id_hmac, phone_hmac, id_masked, phone_masked,
         platform_id, platform, followers, comp_count, companions, device_id, created_at, retention_until

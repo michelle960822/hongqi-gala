@@ -1,1 +1,56 @@
-ewogICJyb3V0ZXMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiXi9hcGkvYWRtaW4vd2lwZSQiLAogICAgICAibWV0aG9kcyI6IFsKICAgICAgICAiUE9TVCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICJeL2FwaS9kZWJ1Zy9jcnlwdG8kIiwKICAgICAgIm1ldGhvZHMiOiBbCiAgICAgICAgIkdFVCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICJeL2FwaS9kZWJ1Zy9yYXckIiwKICAgICAgIm1ldGhvZHMiOiBbCiAgICAgICAgIkdFVCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICJeL2FwaS9oZWFsdGgkIiwKICAgICAgIm1ldGhvZHMiOiBbCiAgICAgICAgIkdFVCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICJeL2FwaS9yZWNvcmRzJCIsCiAgICAgICJtZXRob2RzIjogWwogICAgICAgICJHRVQiLAogICAgICAgICJQT1NUIgogICAgICBdCiAgICB9LAogICAgewogICAgICAic3JjIjogIl4vYXBpL3Zpc2l0X2xvZyQiLAogICAgICAibWV0aG9kcyI6IFsKICAgICAgICAiR0VUIiwKICAgICAgICAiUE9TVCIKICAgICAgXQogICAgfSwKICAgIHsKICAgICAgInNyYyI6ICJeL2FwaS9yZWNvcmRzLyhbXi9dKykkIiwKICAgICAgIm1ldGhvZHMiOiBbCiAgICAgICAgIlBPU1QiLAogICAgICAgICJERUxFVEUiCiAgICAgIF0KICAgIH0sCiAgICB7CiAgICAgICJzcmMiOiAiXi9hcGkvdmlzaXRfbG9nLyhbXi9dKykkIiwKICAgICAgIm1ldGhvZHMiOiBbCiAgICAgICAgIkRFTEVURSIKICAgICAgXQogICAgfQogIF0sCiAgIm1pZGRsZXdhcmUiOiBudWxsCn0=
+{
+  "routes": [
+    {
+      "src": "^/api/admin/wipe$",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "src": "^/api/debug/crypto$",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "src": "^/api/debug/raw$",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "src": "^/api/health$",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "src": "^/api/records$",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "src": "^/api/visit_log$",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "src": "^/api/records/([^/]+)$",
+      "methods": [
+        "POST",
+        "DELETE"
+      ]
+    },
+    {
+      "src": "^/api/visit_log/([^/]+)$",
+      "methods": [
+        "DELETE"
+      ]
+    }
+  ],
+  "middleware": null
+}
