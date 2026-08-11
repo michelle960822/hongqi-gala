@@ -2063,6 +2063,22 @@ function genRecordId() {
   return String(Date.now()).slice(-6);
 }
 
+/** 基于身份证号生成稳定 6 位 ID（批量导入专用，保证同人同码，胸卡可复用） */
+function genStableId(idNumber) {
+  const s = (idNumber || '').toUpperCase().trim();
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  }
+  const num = Math.abs(hash) % 900000 + 100000;
+  // 如果冲突（已存在同 id 但不同身份证号），加前缀避免
+  const id = String(num);
+  if (state.records.some(r => r.id === id && (r.idNumber || '').toUpperCase().trim() !== s)) {
+    return String((num + 7) % 900000 + 100000); // 极小概率冲突，简单偏移
+  }
+  return id;
+}
+
 function getSlotRemaining(roleId, slotIdx, capacity) {
   return Math.max(0, capacity - getSlotUsed(roleId, slotIdx));
 }
@@ -3312,9 +3328,9 @@ function commitBatchImport(validItems) {
       mergedIds.push(exist.id);
       mergeCount++;
     } else {
-      // 新记录 → 直接创建
+      // 新记录 → 直接创建（ID 基于身份证号稳定生成，胸卡可复用）
       const record = {
-        id: genRecordId(),
+        id: genStableId(idNo),
         roleId: base.roleId,
         roleName: role.name,
         slotIdx: base.slotIdx,
