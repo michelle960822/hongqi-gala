@@ -1895,7 +1895,9 @@ async function syncFromCloud(opts = {}) {
 
   let changed = false;
 
-  // ✅ 先做 visitLog 合并式同步（union + dedup by id）—— 任何设备的本地扫码都不会丢
+  // ✅ 先做 visitLog 合并式同步（union + dedup by id + 时间窗口）——
+  //    1. 近期本地独有扫码（≤ STALE_WINDOW_MS 默认 10 分钟）保留：容错 push 延迟、断网重试
+  //    2. 超过窗口的本地独有条目清理：admin 删除云端 / 旧测试数据自动消失
   if (vlResp && Array.isArray(vlResp.visitLog)) {
     const cloudVl = vlResp.visitLog.map(v => ({
       id: v.id,
@@ -1905,13 +1907,30 @@ async function syncFromCloud(opts = {}) {
       note: v.note || '',
       time: v.time,
     }));
-    // 双端 union：云端先入，本地独有的（id 不在云端）追加，id 重复以云端为准
+    const cloudIds = new Set(cloudVl.map(v => v.id));
+    const STALE_WINDOW_MS = 5 * 60 * 1000; // 5 分钟
+    const now = Date.now();
+    const localOnly = [];
+    const localFresh = [];
+    state.visitLog.forEach(v => {
+      if (cloudIds.has(v.id)) return; // cloud 已有，跳过（下面合并时由 cloud 覆盖）
+      const t = v.time ? Date.parse(String(v.time).replace(' ', 'T')) : NaN;
+      if (!isNaN(t) && (now - t) <= STALE_WINDOW_MS) {
+        localFresh.push(v); // 近期本地独有 → 保留（容错 push 延迟）
+      } else {
+        localOnly.push(v); // 超窗口本地独有 → 视为过期/被删
+      }
+    });
+    if (localOnly.length > 0) {
+      console.log('[sync] visitLog 清理过期/已被删除条目:', localOnly.length, '条', localOnly.map(v => v.id));
+    }
+    // cloud 入 Map，10 分钟内本地独有追加
     const byId = new Map();
     cloudVl.forEach(v => byId.set(v.id, v));
-    state.visitLog.forEach(v => { if (!byId.has(v.id)) byId.set(v.id, v); });
+    localFresh.forEach(v => byId.set(v.id, v));
     const merged = Array.from(byId.values());
     if (JSON.stringify(merged) !== JSON.stringify(state.visitLog)) {
-      console.log('[sync] visitLog 合并:', state.visitLog.length, '+云', cloudVl.length, '→', merged.length, '条（去重 by id）');
+      console.log('[sync] visitLog 合并:', state.visitLog.length, '+云', cloudVl.length, '+近期', localFresh.length, '→', merged.length, '条');
       state.visitLog = merged;
       saveVisitLog();
       changed = true;
