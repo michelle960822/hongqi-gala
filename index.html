@@ -1927,10 +1927,11 @@ async function syncFromCloud(opts = {}) {
 
     // 比较是否变化（保护：云端记录数少于本地时不覆盖，避免导入后异步同步还没完成就被冲掉）
     if (JSON.stringify(newRecords) !== JSON.stringify(state.records)) {
-      if (newRecords.length < state.records.length && !silent) {
-        console.log('[sync] 云端记录数少于本地，跳过覆盖（等待云端同步完成）');
+      if (newRecords.length < state.records.length) {
+        console.log('[sync] 跳过覆盖: 云端', newRecords.length, '< 本地', state.records.length);
         return changed;
       }
+      console.log('[sync] 覆盖本地: 云端', newRecords.length, '条 → 本地', state.records.length, '条');
       state.records = newRecords;
       saveRecords();
       changed = true;
@@ -3259,6 +3260,7 @@ function renderCsvPreview(validItems, invalidItems) {
 }
 
 function commitBatchImport(validItems) {
+  console.log('[import] 开始导入, 当前总记录:', state.records.length, '媒体:', state.records.filter(r=>r.roleId==='media').length);
   // 按身份证号分组，同一个人不同日期的行自动合并为 multi-slot
   const groups = new Map(); // idNo → items[]
   validItems.forEach(it => {
@@ -3396,10 +3398,12 @@ function commitBatchImport(validItems) {
     }
   });
   saveRecords();
+  console.log('[import] 导入完成, 总记录:', state.records.length, '媒体:', state.records.filter(r=>r.roleId==='media').length, '本次新增:', newRecordIds.length, '合并:', mergeCount);
 
   // 暂停云端同步 10s，等所有 apiPost 写完 D1 再恢复（防覆盖）
   stopSyncPolling();
-  setTimeout(() => { if (_syncEnabled && !/[?&]demo=1/.test(location.search)) startSyncPolling(); }, 10000);
+  console.log('[import] 同步已暂停 10s');
+  setTimeout(() => { console.log('[import] 恢复同步'); if (_syncEnabled && !/[?&]demo=1/.test(location.search)) startSyncPolling(); }, 10000);
 
   // 自动勾选新导入的记录 → 用户可直接点批量操作
   const allAffectedIds = [...newRecordIds, ...mergedIds];
