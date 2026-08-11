@@ -965,6 +965,10 @@
     font-size: 10pt; color: #111; font-weight: 600; line-height: 1.2;
     word-break: break-all; overflow-wrap: break-word;
   }
+  .badge-card .info .real-name {
+    font-size: 7.5pt; color: #555; line-height: 1.2; margin-top: 0.5mm;
+    word-break: break-all; overflow-wrap: break-word;
+  }
   .badge-card .info .code {
     font-size: 8pt; color: #666; line-height: 1.2;
     word-break: break-all; overflow-wrap: break-word;
@@ -3988,6 +3992,7 @@ function buildBadgesHtml(records) {
             <div class="label">平台ID</div>
             <div class="pid">${escapeHtml(r.platformId || '—')}</div>
           </div>
+          <div class="real-name">${escapeHtml(r.realName || '')}</div>
           <div class="code">核销码 ${escapeHtml(r.id)}</div>
         </div>
       </div>
@@ -4015,6 +4020,7 @@ function buildBadgesHtml(records) {
   .badge-card .info .pid-group { margin: auto 0; }
   .badge-card .info .label { font-size: 6pt; color: #999; line-height: 1.2; margin-bottom: 1mm; }
   .badge-card .info .pid { font-size: 10pt; color: #111; font-weight: 600; line-height: 1.2; word-break: break-all; overflow-wrap: break-word; }
+  .badge-card .info .real-name { font-size: 7.5pt; color: #555; line-height: 1.2; margin-top: 0.5mm; word-break: break-all; overflow-wrap: break-word; }
   .badge-card .info .code { font-size: 8pt; color: #666; line-height: 1.2; }
   @media print {
     .badge-page { background: #fff; padding: 0; }
