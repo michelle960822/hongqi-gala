@@ -1888,6 +1888,31 @@ async function syncFromCloud(opts = {}) {
   ]);
 
   let changed = false;
+
+  // ✅ 先做 visitLog 合并式同步（union + dedup by id）—— 任何设备的本地扫码都不会丢
+  if (vlResp && Array.isArray(vlResp.visitLog)) {
+    const cloudVl = vlResp.visitLog.map(v => ({
+      id: v.id,
+      rid: v.rid,
+      point: v.point || '',
+      operator: v.operator || '',
+      note: v.note || '',
+      time: v.time,
+    }));
+    // 双端 union：云端先入，本地独有的（id 不在云端）追加，id 重复以云端为准
+    const byId = new Map();
+    cloudVl.forEach(v => byId.set(v.id, v));
+    state.visitLog.forEach(v => { if (!byId.has(v.id)) byId.set(v.id, v); });
+    const merged = Array.from(byId.values());
+    if (JSON.stringify(merged) !== JSON.stringify(state.visitLog)) {
+      console.log('[sync] visitLog 合并:', state.visitLog.length, '+云', cloudVl.length, '→', merged.length, '条（去重 by id）');
+      state.visitLog = merged;
+      saveVisitLog();
+      changed = true;
+    }
+  }
+
+  // 再做 records 的同步（保留防覆盖 guard，避免导入异步同步期间被冲掉）
   if (recResp && Array.isArray(recResp.records)) {
     // 转换服务器字段名 → 前端字段名
     const newRecords = recResp.records.map(r => {
@@ -1928,29 +1953,14 @@ async function syncFromCloud(opts = {}) {
     // 比较是否变化（保护：云端记录数少于本地时不覆盖，避免导入后异步同步还没完成就被冲掉）
     if (JSON.stringify(newRecords) !== JSON.stringify(state.records)) {
       if (newRecords.length < state.records.length) {
-        console.log('[sync] 跳过覆盖: 云端', newRecords.length, '< 本地', state.records.length);
-        return changed;
+        console.log('[sync] 跳过覆盖 records: 云端', newRecords.length, '< 本地', state.records.length);
+        // 重要：不 return，visitLog 已经在前面同步过了
+      } else {
+        console.log('[sync] 覆盖 records: 云端', newRecords.length, '条 → 本地', state.records.length, '条');
+        state.records = newRecords;
+        saveRecords();
+        changed = true;
       }
-      console.log('[sync] 覆盖本地: 云端', newRecords.length, '条 → 本地', state.records.length, '条');
-      state.records = newRecords;
-      saveRecords();
-      changed = true;
-    }
-  }
-
-  if (vlResp && Array.isArray(vlResp.visitLog)) {
-    const newVl = vlResp.visitLog.map(v => ({
-      id: v.id,
-      rid: v.rid,
-      point: v.point || '',
-      operator: v.operator || '',
-      note: v.note || '',
-      time: v.time,
-    }));
-    if (JSON.stringify(newVl) !== JSON.stringify(state.visitLog)) {
-      state.visitLog = newVl;
-      saveVisitLog();
-      changed = true;
     }
   }
 
