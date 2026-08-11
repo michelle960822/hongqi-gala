@@ -3130,7 +3130,7 @@ function parseCsvBatch() {
       errors.push(`该手机号已报名：${exist.realName}（${formatSlots(exist)}）`);
     }
 
-    // 名额检查（兼容 multi-slot：遍历 records.slots 而非只看 slotIdx）
+    // 名额检查：超额不拦截，仅标黄提示"超额 X/Y"
     if (role && slot) {
       const targetSlotIdx = role.slots.indexOf(slot);
       const used = state.records.filter(r => {
@@ -3138,7 +3138,10 @@ function parseCsvBatch() {
         if (r.slots && r.slots.length > 0) return r.slots.some(s => s.slotIdx === targetSlotIdx);
         return r.slotIdx === targetSlotIdx;
       }).length;
-      if (used >= slot.capacity) errors.push(`该时段已报满（${used}/${slot.capacity}）`);
+      if (used >= slot.capacity) {
+        it._warnings = it._warnings || [];
+        it._warnings.push(`⚠️ 超额：该时段已报 ${used}/${slot.capacity}（超出 ${used - slot.capacity} 人）`);
+      }
     }
 
     if (errors.length === 0) {
@@ -3209,10 +3212,13 @@ function renderCsvPreview(validItems, invalidItems) {
   }
 
   if (validItems.length > 0) {
+    const warnCount = validItems.filter(it => it._warnings && it._warnings.length > 0).length;
     const box = el('details', { open: true },
       el('summary', {
         style: 'background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px 12px;cursor:pointer;color:#065f46;font-weight:500;font-size:13px;'
-      }, `✓ ${validItems.length} 条待导入（点击查看详情）`)
+      }, `✓ ${validItems.length} 条待导入（点击查看详情）`,
+        warnCount > 0 ? el('span', { style: 'color:#92400e;margin-left:8px;font-size:11px;' }, `⚠️ ${warnCount} 条超额警告`) : null
+      )
     );
     const table = el('table', { style: 'margin-top:10px;font-size:12px;' },
       el('thead', {},
@@ -3223,18 +3229,21 @@ function renderCsvPreview(validItems, invalidItems) {
           el('th', {}, '姓名'),
           el('th', {}, '身份证号'),
           el('th', {}, '联系方式'),
+          el('th', {}, '备注'),
         )
       ),
-      el('tbody', {}, ...validItems.map(it =>
-        el('tr', {},
+      el('tbody', {}, ...validItems.map(it => {
+        const warnings = it._warnings || [];
+        return el('tr', { style: warnings.length > 0 ? 'background:#fffbeb;' : '' },
           el('td', {}, String(it.rowIndex)),
           el('td', {}, ROLES[it.roleId].name),
           el('td', {}, `${ROLES[it.roleId].slots[it.slotIdx].dateLabel} ${ROLES[it.roleId].slots[it.slotIdx].time}`),
           el('td', {}, it.item.真实姓名),
           el('td', {}, it.item.身份证号),
-          el('td', {}, it.item.联系方式)
-        )
-      ))
+          el('td', {}, it.item.联系方式),
+          el('td', { style: 'color:#92400e;font-size:11px;' }, warnings.join('；'))
+        );
+      }))
     );
     box.appendChild(table);
     wrap.appendChild(box);
