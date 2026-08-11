@@ -1925,8 +1925,12 @@ async function syncFromCloud(opts = {}) {
         createdAt: r.created_at,
     }});
 
-    // 比较是否变化
+    // 比较是否变化（保护：云端记录数少于本地时不覆盖，避免导入后异步同步还没完成就被冲掉）
     if (JSON.stringify(newRecords) !== JSON.stringify(state.records)) {
+      if (newRecords.length < state.records.length && !silent) {
+        console.log('[sync] 云端记录数少于本地，跳过覆盖（等待云端同步完成）');
+        return changed;
+      }
       state.records = newRecords;
       saveRecords();
       changed = true;
@@ -3392,6 +3396,11 @@ function commitBatchImport(validItems) {
     }
   });
   saveRecords();
+
+  // 暂停云端同步 10s，等所有 apiPost 写完 D1 再恢复（防覆盖）
+  stopSyncPolling();
+  setTimeout(() => { if (_syncEnabled && !/[?&]demo=1/.test(location.search)) startSyncPolling(); }, 10000);
+
   // 自动勾选新导入的记录 → 用户可直接点批量操作
   const allAffectedIds = [...newRecordIds, ...mergedIds];
   state.selectedRecords = new Set(allAffectedIds);
