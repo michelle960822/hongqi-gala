@@ -1434,6 +1434,7 @@ function idCheckCodeExpected(id17) {
 /* ==================== 状态存储 ==================== */
 const STORAGE_KEY = 'fan_signup_records_v1';
 const VISIT_KEY = 'fan_visit_log_v1';
+const PENDING_KEY = 'fan_visit_pending_v1'; // outbox：push 失败的扫码队列
 // API 路径：使用同源 Pages Function（避免跨域 / workers.dev 被拦问题）
 const API_BASE_URL = (window.HONGQI_API_URL || ''); // 空字符串 = 同源（推荐）
 const SYNC_INTERVAL_MS = 5000; // 5 秒轮询
@@ -1475,6 +1476,7 @@ let state = {
   selectedSlots: new Set(), // 当前选中的时段索引集合（多选模式：media / talent）
   records: [],            // 报名记录
   visitLog: [],           // 签到流水
+  pendingCheckins: [],    // outbox：push 失败待补推的扫码队列
   customPoints: [],       // 自定义点位
   currentCheckin: null,   // 当前正在签到的人员（record id）
   deviceId: null,         // 当前设备的唯一标识
@@ -1843,6 +1845,56 @@ function loadVisitLog() {
   } catch (e) { state.visitLog = []; }
 }
 
+/* ============ outbox 队列：扫码 push 失败时暂存，下次有网自动补推 ============ */
+function loadPending() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+    state.pendingCheckins = Array.isArray(raw) ? raw : [];
+  } catch (e) { state.pendingCheckins = []; }
+}
+function savePending() {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify(state.pendingCheckins || [])); }
+  catch (e) { console.warn('[pending] localStorage 写入失败：', e.message); }
+}
+// 扫码后立即尝试 push，失败则入队；成功后清队
+function pushVisitLog(entry) {
+  return apiPost('/api/visit_log', {
+    id: entry.id,
+    rid: entry.rid,
+    point: entry.point,
+    operator: entry.operator,
+    note: '',
+    time: entry.ts,
+  }).then(resp => {
+    if (resp && resp.__error) {
+      console.warn('[checkin] 云端同步失败，入队待重试：', resp);
+      if (!(state.pendingCheckins || []).some(p => p.id === entry.id)) {
+        state.pendingCheckins.push(entry);
+        savePending();
+      }
+      return false;
+    }
+    console.log('[checkin] 已同步到云端');
+    return true;
+  });
+}
+// 每轮 sync 时调用：把队列里还没上云的逐条补推
+async function flushPending() {
+  if (!_syncEnabled) return;
+  const q = state.pendingCheckins || [];
+  if (!q.length) return;
+  let okCount = 0;
+  for (const entry of q.slice()) {
+    const ok = await pushVisitLog(entry);
+    if (ok) {
+      state.pendingCheckins = state.pendingCheckins.filter(p => p.id !== entry.id);
+      savePending();
+      okCount++;
+    }
+  }
+  if (okCount > 0) console.log('[pending] 补推成功', okCount, '条');
+}
+
 // ============ 云同步层（Cloudflare Workers + D1） ============
 async function apiGet(path) {
   try {
@@ -1992,6 +2044,7 @@ function startSyncPolling() {
   if (_syncTimer) clearInterval(_syncTimer);
   // 立即拉一次
   syncFromCloud({ silent: true }).then(() => {
+    flushPending();
     // 首次拉取后强制重新渲染
     if (typeof renderRoleGrid === 'function') renderRoleGrid();
     if (typeof renderSlotList === 'function') renderSlotList();
@@ -2001,7 +2054,7 @@ function startSyncPolling() {
   });
   // 定时轮询
   _syncTimer = setInterval(() => {
-    syncFromCloud({ silent: true });
+    syncFromCloud({ silent: true }).then(() => flushPending());
   }, SYNC_INTERVAL_MS);
 }
 
@@ -4601,19 +4654,10 @@ function confirmCheckin() {
   saveVisitLog();
   renderCheckinPerson();
 
-  // 同步到云端（实时多端看板）
-  apiPost('/api/visit_log', {
-    id: entry.id,
-    rid: entry.rid,
-    point: entry.point,
-    operator: entry.operator,
-    note: '',
-    time: entry.ts,
-  }).then(resp => {
-    if (resp && resp.__error) {
-      console.warn('[checkin] 云端同步失败：', resp);
-    } else {
-      console.log('[checkin] 已同步到云端');
+  // 同步到云端（outbox：成功即上云，失败入队待自动重试）
+  pushVisitLog(entry).then(ok => {
+    if (!ok) {
+      toast('⚠️ 云端同步失败，已本地暂存，联网后自动补传', 'warn');
     }
   });
 
@@ -5836,8 +5880,9 @@ applyAuthToNavTabs();
 bindEvents();
 renderRoleGrid();
 
-// 启动云同步轮询（Cloudflare Pages Function + D1 实时多端同步）
+  // 启动云同步轮询（Cloudflare Pages Function + D1 实时多端同步）
 if (_syncEnabled) {
+  loadPending();
   startSyncPolling();
 }
 
