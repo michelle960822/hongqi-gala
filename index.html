@@ -3982,8 +3982,21 @@ function buildQrGridHtml(records, title) {
 }
 
 function buildBadgesHtml(records) {
+  // 检测媒体记录中同一平台ID是否有≥2个不同真实姓名（需区分同名人的场景）
+  const mediaRecords = records.filter(r => r.roleId === 'media' && r.platformId);
+  const platformNames = new Map(); // platformId → Set of real names
+  mediaRecords.forEach(r => {
+    if (!platformNames.has(r.platformId)) platformNames.set(r.platformId, new Set());
+    platformNames.get(r.platformId).add(r.realName || '');
+  });
+  const conflictPlatforms = new Set();
+  platformNames.forEach((names, pid) => {
+    if (names.size >= 2) conflictPlatforms.add(pid);
+  });
+
   const cards = records.map(r => {
     const qrSvg = buildQrSvg(r.id, 4, 1);
+    const showName = r.roleId === 'media' && conflictPlatforms.has(r.platformId);
     return `
       <div class="badge-card">
         <div class="qr">${qrSvg}</div>
@@ -3992,7 +4005,7 @@ function buildBadgesHtml(records) {
             <div class="label">平台ID</div>
             <div class="pid">${escapeHtml(r.platformId || '—')}</div>
           </div>
-          <div class="real-name">${escapeHtml(r.realName || '')}</div>
+          ${showName ? `<div class="real-name">${escapeHtml(r.realName || '')}</div>` : ''}
           <div class="code">核销码 ${escapeHtml(r.id)}</div>
         </div>
       </div>
