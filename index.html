@@ -4368,7 +4368,7 @@ function exportCSV() {
     const timeDisplay = (r.slots && r.slots.length > 1) ? r.slots.map(s => s.time).join('、') : r.time;
     return [
       r.createdAt, r.roleName, dateDisplay, timeDisplay, r.category, platformText, r.platformId, r.followers,
-      r.realName, r.idNumber, r.phone, r.compCount,
+      r.realName, maskIdNumber(r.idNumber), r.phone ? maskPhone(r.phone) : '', r.compCount,
       c1.name || '', maskIdNumber(c1.idNumber), c1.phone ? maskPhone(c1.phone) : '',
       c2.name || '', maskIdNumber(c2.idNumber), c2.phone ? maskPhone(c2.phone) : '',
     ];
