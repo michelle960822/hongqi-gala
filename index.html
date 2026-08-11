@@ -1827,7 +1827,13 @@ function saveRecords() {
   if (deduped.length !== state.records.length) {
     state.records = deduped;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
+  // Safari 无痕模式 / 存储已满 / 跨站追踪防护下 localStorage.setItem 会抛错，
+  // 这里必须吞掉异常，避免中断提交流程导致按钮卡死在“提交中...”
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
+  } catch (e) {
+    console.warn('[saveRecords] localStorage 写入失败（Safari 无痕/存储已满？），记录仅保留在内存与云端：', e.message);
+  }
 }
 
 function loadVisitLog() {
@@ -2005,7 +2011,12 @@ function stopSyncPolling() {
   }
 }
 function saveVisitLog() {
-  localStorage.setItem(VISIT_KEY, JSON.stringify(state.visitLog));
+  // 同上：Safari 下 localStorage 可能不可用，吞掉异常避免中断同步
+  try {
+    localStorage.setItem(VISIT_KEY, JSON.stringify(state.visitLog));
+  } catch (e) {
+    console.warn('[saveVisitLog] localStorage 写入失败：', e.message);
+  }
 }
 
 function loadPoints() {
@@ -2779,82 +2790,89 @@ function submitForm() {
     seenPhones.add(c.phone);
   }
 
-  const record = {
-    id: genRecordId(),
-    roleId: role.id,
-    roleName: role.name,
-    slotIdx: primarySlotIdx,
-    date: primarySlot.date,
-    dateLabel: primarySlot.dateLabel,
-    time: primarySlot.time,
-    slots: isMulti
-      ? [...state.selectedSlots].sort().map(si => {
-          const s = role.slots[si];
-          return { slotIdx: si, date: s.date, dateLabel: s.dateLabel, time: s.time };
-        })
-      : [{ slotIdx: primarySlotIdx, date: primarySlot.date, dateLabel: primarySlot.dateLabel, time: primarySlot.time }],
-    category: document.getElementById('category').value.trim(),
-    platformId: document.getElementById('platformId').value.trim(),
-    platform: checkedPlatforms,         // 数组
-    followers: document.getElementById('followers').value.trim(),
-    realName: document.getElementById('realName').value.trim(),
-    idNumber,
-    phone,
-    deviceId: getDeviceId(),
-    compCount,
-    companions,
-    createdAt: formatDateTime(),
-  };
+  let record;
+  try {
+    record = {
+      id: genRecordId(),
+      roleId: role.id,
+      roleName: role.name,
+      slotIdx: primarySlotIdx,
+      date: primarySlot.date,
+      dateLabel: primarySlot.dateLabel,
+      time: primarySlot.time,
+      slots: isMulti
+        ? [...state.selectedSlots].sort().map(si => {
+            const s = role.slots[si];
+            return { slotIdx: si, date: s.date, dateLabel: s.dateLabel, time: s.time };
+          })
+        : [{ slotIdx: primarySlotIdx, date: primarySlot.date, dateLabel: primarySlot.dateLabel, time: primarySlot.time }],
+      category: document.getElementById('category').value.trim(),
+      platformId: document.getElementById('platformId').value.trim(),
+      platform: checkedPlatforms,         // 数组
+      followers: document.getElementById('followers').value.trim(),
+      realName: document.getElementById('realName').value.trim(),
+      idNumber,
+      phone,
+      deviceId: getDeviceId(),
+      compCount,
+      companions,
+      createdAt: formatDateTime(),
+    };
 
-  state.records.push(record);
-  saveRecords();
+    state.records.push(record);
+    saveRecords();
 
-  // 同步到云端（Cloudflare Workers + D1）
-  apiPost('/api/records', {
-    id: record.id,
-    roleId: record.roleId,
-    roleName: record.roleName,
-    slotIdx: record.slotIdx,
-    date: record.date,
-    dateLabel: record.dateLabel,
-    time: record.time,
-    category: record.category,
-    realName: record.realName,
-    idNumber: record.idNumber,
-    phone: record.phone,
-    platformId: record.platformId,
-    platform: record.platform,
-    followers: record.followers,
-    compCount: record.compCount,
-    companions: record.companions,
-    deviceId: record.deviceId,
-    createdAt: record.createdAt,
-  }).then(resp => {
-    if (resp && resp.__error) {
-      console.warn('[submit] 云端同步失败：', resp);
-      // 服务端检测到冲突（409）：回滚本地记录
-      if (resp.status === 409 && resp.message) {
-        state.records = state.records.filter(x => x.id !== record.id);
-        saveRecords();
-        renderRoleGrid();
-        renderSlotList();
-        toast('⚠️ ' + resp.message, 'error', 6000);
+    // 同步到云端（Cloudflare Workers + D1）
+    apiPost('/api/records', {
+      id: record.id,
+      roleId: record.roleId,
+      roleName: record.roleName,
+      slotIdx: record.slotIdx,
+      date: record.date,
+      dateLabel: record.dateLabel,
+      time: record.time,
+      category: record.category,
+      realName: record.realName,
+      idNumber: record.idNumber,
+      phone: record.phone,
+      platformId: record.platformId,
+      platform: record.platform,
+      followers: record.followers,
+      compCount: record.compCount,
+      companions: record.companions,
+      deviceId: record.deviceId,
+      createdAt: record.createdAt,
+    }).then(resp => {
+      if (resp && resp.__error) {
+        console.warn('[submit] 云端同步失败：', resp);
+        // 服务端检测到冲突（409）：回滚本地记录
+        if (resp.status === 409 && resp.message) {
+          state.records = state.records.filter(x => x.id !== record.id);
+          saveRecords();
+          renderRoleGrid();
+          renderSlotList();
+          toast('⚠️ ' + resp.message, 'error', 6000);
+        }
       }
-    }
-  });
+    });
 
-  // 报名成功：直接弹出大 QR 弹窗（背景遮住 form 区域）
-  showSuccessCard(record);
+    // 报名成功：直接弹出大 QR 弹窗（背景遮住 form 区域）
+    showSuccessCard(record);
 
-  resetForm(false);
-  renderRoleGrid();
-  renderSlotList();
-
-  // 1.5s 后恢复按钮
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.textContent = oldText;
-  }, 1500);
+    resetForm(false);
+    renderRoleGrid();
+    renderSlotList();
+  } catch (err) {
+    // 任何意外异常（如 QR 生成失败）都不要卡死按钮，并提示用户
+    console.error('[submit] 提交过程发生异常：', err);
+    toast('提交过程出错，请重试：' + (err && err.message ? err.message : err), 'error');
+  } finally {
+    // 无论成功还是异常，一律恢复按钮（防止 Safari 下卡在“提交中...”）
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }, 1500);
+  }
 }
 
 function showSuccessCard(record) {
