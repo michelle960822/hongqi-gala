@@ -1115,6 +1115,9 @@
           <button class="btn btn-ghost" id="btnClearAll">🗑 清空全部</button>
         </div>
       </div>
+      <div style="margin-top:8px;">
+        <input id="adminSearch" type="text" placeholder="🔍 搜索平台ID / 姓名..." style="width:100%;max-width:320px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
+      </div>
       <div id="recordList"></div>
     </div>
 
@@ -1477,6 +1480,7 @@ let state = {
   deviceId: null,         // 当前设备的唯一标识
   selectedRecords: new Set(), // admin 表格中多选的 record id
   adminPage: 0,            // 报名管理分页（每页 30 条）
+  searchQuery: '',         // 报名管理搜索
   _pendingQrRecord: null, // QR 扫码带过来的临时 record，签到时持久化
 };
 
@@ -3744,10 +3748,22 @@ function renderRecordList() {
 
   const tbody = el('tbody');
   const sorted = [...state.records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  
+  // 搜索过滤
+  const q = (state.searchQuery || '').trim().toLowerCase();
+  let filtered = sorted;
+  if (q) {
+    filtered = sorted.filter(r => 
+      (r.platformId || '').toLowerCase().includes(q) ||
+      (r.realName || '').toLowerCase().includes(q)
+    );
+    $('#recordCount').textContent = `搜索 "${state.searchQuery}" — ${filtered.length} / ${sorted.length} 条`;
+  }
+  
   const PAGE_SIZE = 30;
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   if (state.adminPage >= totalPages) state.adminPage = totalPages - 1;
-  const pageSlice = sorted.slice(state.adminPage * PAGE_SIZE, (state.adminPage + 1) * PAGE_SIZE);
+  const pageSlice = filtered.slice(state.adminPage * PAGE_SIZE, (state.adminPage + 1) * PAGE_SIZE);
   pageSlice.forEach(r => {
     const compText = r.compCount > 0
       ? r.companions.map(c =>
@@ -3836,7 +3852,7 @@ function renderRecordList() {
         disabled: state.adminPage <= 0,
         onclick: () => { state.adminPage--; renderRecordList(); }
       }, '← 上一页'),
-      el('span', {}, `第 ${state.adminPage + 1} / ${totalPages} 页 · 共 ${sorted.length} 条`),
+      el('span', {}, `第 ${state.adminPage + 1} / ${totalPages} 页 · 共 ${filtered.length} 条`),
       el('button', {
         class: 'btn btn-ghost',
         style: 'font-size:12px;',
@@ -5529,6 +5545,17 @@ function bindEvents() {
   $('#btnExportFull').addEventListener('click', exportFullWithPin);
   $('#btnCleanupExpired').addEventListener('click', cleanupExpired);
   $('#btnClearAll').addEventListener('click', clearAllRecords);
+  
+  // 搜索框
+  const adminSearch = document.getElementById('adminSearch');
+  if (adminSearch) {
+    adminSearch.value = state.searchQuery || '';
+    adminSearch.addEventListener('input', () => {
+      state.searchQuery = adminSearch.value;
+      state.adminPage = 0;
+      renderRecordList();
+    });
+  }
   const btnDashExportInline = document.getElementById('btnDashExportInline');
   if (btnDashExportInline) btnDashExportInline.addEventListener('click', exportVisitLogDetail);
 
