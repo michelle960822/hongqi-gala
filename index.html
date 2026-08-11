@@ -4755,6 +4755,14 @@ function renderDashboard() {
   const activePoints = Object.keys(pointCounts).length;
   const avgPerPoint = activePoints > 0 ? (allLogs.length / activePoints).toFixed(1) : '0';
 
+  // 平台去重统计（同一平台ID只计一次，方便复盘"来了几家媒体/单位"）
+  const uniqueMediaPlatforms = new Set(
+    state.records.filter(r => r.roleId === 'media' && r.platformId).map(r => r.platformId)
+  ).size;
+  const uniqueTalentUnits = new Set(
+    state.records.filter(r => r.roleId === 'talent' && r.category).map(r => r.category)
+  ).size;
+
   const stats = $('#dashStats');
   if (stats) {
     stats.innerHTML = '';
@@ -4765,6 +4773,8 @@ function renderDashboard() {
       { num: signRate + '%', lbl: '到场率' },
       { num: avgPerPoint, lbl: '📍 点位平均体验次数' },
       { num: topPoint, lbl: '🔥 最热点位' },
+      { num: uniqueMediaPlatforms, lbl: '📰 媒体平台数（去重）' },
+      { num: uniqueTalentUnits, lbl: '⭐ 达人单位数（去重）' },
     ].forEach(it => {
       stats.appendChild(el('div', { class: 'stat-item' },
         el('div', { class: 'num', style: it.lbl.startsWith('🔥') || it.lbl.startsWith('📍') ? 'font-size:18px;' : '' }, String(it.num)),
