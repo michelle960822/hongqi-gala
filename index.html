@@ -2276,7 +2276,7 @@ function renderRoleGrid() {
       el('div', { class: 'desc' }, role.desc),
       el('div', { class: 'remain' + (isFull ? ' full' : '') },
         el('span', { class: 'dot' }),
-        isFull ? '所有时段已报满' : `已报 ${totalUsed} / ${totalCap} 账号`
+        isFull ? '所有时段已报满' : `已报 ${totalUsed} / ${totalCap} 个账号`
       ),
       el('div', { class: 'progress' },
         el('div', { class: 'bar ' + barCls, style: `width: ${Math.round(ratio * 100)}%` })
@@ -2332,7 +2332,7 @@ function renderSlotList() {
             `📅 ${dateLabel}`)
         : `📅 ${dateLabel}`,
       el('span', { style: 'font-size:12px;color:var(--text-3);font-weight:400;margin-left:8px;' },
-        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 账号`),
+        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 个账号`),
       isMulti
         ? (() => {
             const selectedCount = items.filter(it => state.selectedSlots.has(it.idx)).length;
@@ -2414,7 +2414,7 @@ function renderForm() {
   } else {
     area.appendChild(el('div', { class: 'helper' },
       el('strong', {}, '已选时段：'),
-      `${slot.dateLabel} ${slot.time}（剩余 ${slot.capacity - getSlotUsed(role.id, state.selectedSlot)} / ${slot.capacity} 账号）`
+      `${slot.dateLabel} ${slot.time}（剩余 ${slot.capacity - getSlotUsed(role.id, state.selectedSlot)} / ${slot.capacity} 个账号）`
     ));
   }
 
@@ -2491,12 +2491,12 @@ function renderForm() {
 
   /* 随行人员 */
   const compSection = el('div', { class: 'form-grid full' });
-  area.appendChild(el('div', { class: 'section-title' }, `随行人员（最多 ${role.maxCompanions} 账号）`));
+  area.appendChild(el('div', { class: 'section-title' }, `随行人员（最多 ${role.maxCompanions} 人）`));
   area.appendChild(compSection);
 
   const compCount = el('select', { id: 'compCount' });
   for (let i = 0; i <= role.maxCompanions; i++) {
-    const opt = el('option', { value: i }, i === 0 ? '无随行' : `${i} 账号`);
+    const opt = el('option', { value: i }, i === 0 ? '无随行' : `${i} 人`);
     compCount.appendChild(opt);
   }
   compCount.addEventListener('change', () => updateCompanionUI(role));
@@ -3264,7 +3264,7 @@ function parseCsvBatch() {
       }).length;
       if (used >= slot.capacity) {
         it._warnings = it._warnings || [];
-        it._warnings.push(`⚠️ 超额：该时段已报 ${used}/${slot.capacity}（超出 ${used - slot.capacity} 账号）`);
+        it._warnings.push(`⚠️ 超额：该时段已报 ${used}/${slot.capacity}（超出 ${used - slot.capacity} 个账号）`);
       }
     }
 
@@ -3756,7 +3756,7 @@ function renderStats() {
   state.records.forEach(r => { totalRoles[r.roleId] = (totalRoles[r.roleId] || 0) + 1; });
 
   const items = [
-    { num: state.records.length, lbl: '累计报名（账号数）' },
+    { num: state.records.length, lbl: '累计报名（个账号数）' },
     { num: totalUsed, lbl: '已占用名额' },
     { num: totalCap - totalUsed, lbl: '剩余名额' },
     { num: totalCap, lbl: '总承载量' },
@@ -3769,7 +3769,7 @@ function renderStats() {
   items.push(
     { num: mediaPlats, lbl: '📰 媒体平台（去重）' },
     { num: talentUnits, lbl: '⭐ 达人单位（去重）' },
-    { num: state.records.length + compTotal, lbl: '🧑‍🤝‍🧑 总账号（含随行）' },
+    { num: state.records.length + compTotal, lbl: '🧑‍🤝‍🧑 总人数（含随行）' },
   );
   items.forEach(it => {
     stats.appendChild(el('div', { class: 'stat-item' },
@@ -3784,7 +3784,7 @@ function renderStats() {
     const cap = role.slots.reduce((s, x) => s + x.capacity, 0);
     stats.appendChild(el('div', { class: 'stat-item' },
       el('div', { class: 'num', style: 'font-size:16px;' }, role.name + ' ' + used + '/' + cap),
-      el('div', { class: 'lbl' }, role.emoji + ' ' + (used >= cap ? '已报满' : `还剩 ${cap - used} 账号`))
+      el('div', { class: 'lbl' }, role.emoji + ' ' + (used >= cap ? '已报满' : `还剩 ${cap - used} 个账号`))
     ));
   });
 }
@@ -4968,9 +4968,13 @@ function renderDashboard() {
   const allLogs = state.visitLog || [];
   const today = new Date().toISOString().slice(0, 10);
   const todayCount = allLogs.filter(v => (v.ts || '').slice(0, 10) === today).length;
-  const uniquePeople = new Set(allLogs.map(v => v.rid)).size;
   const totalRecords = state.records.length;
-  const signedRecords = new Set(allLogs.map(v => v.rid)).size;
+  const signedRecordIds = [...new Set(allLogs.map(v => v.rid))];
+  const signedRecords = signedRecordIds.length;
+  const signedPeopleCount = signedRecordIds.reduce((sum, rid) => {
+    const r = getRecordById(rid);
+    return sum + 1 + (r ? (r.companions || []).length : 0);
+  }, 0);
   const signRate = totalRecords > 0 ? Math.round((signedRecords / totalRecords) * 100) : 0;
 
   const pointCounts = {};
@@ -4994,7 +4998,7 @@ function renderDashboard() {
     stats.innerHTML = '';
     [
       { num: signRate + '%', lbl: '到场率' },
-      { num: signedRecords, lbl: '已到场账号数（去重）' },
+      { num: signedPeopleCount, lbl: '已到场人数（去重）' },
       { num: allLogs.length, lbl: '累计签到次数' },
       { num: avgPerPoint, lbl: '📍 点位平均体验次数' },
       { num: topPoint, lbl: '🔥 最热点位' },
