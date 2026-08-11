@@ -3597,6 +3597,25 @@ function renderRecordList() {
   wrap.innerHTML = '';
   $('#recordCount').textContent = `共 ${state.records.length} 条报名`;
 
+  // 管理后台专属统计卡片（不对外展示）
+  if (state.records.length > 0) {
+    const mediaPlats = new Set(state.records.filter(r => r.roleId === 'media' && r.platformId).map(r => r.platformId)).size;
+    const talentUnits = new Set(state.records.filter(r => r.roleId === 'talent' && r.category).map(r => r.category)).size;
+    const compTotal = state.records.reduce((sum, r) => sum + (r.compCount || 0), 0);
+    wrap.appendChild(el('div', { class: 'admin-stats-bar', style: 'display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;' },
+      el('div', { style: 'background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 14px;font-size:13px;' },
+        el('span', { style: 'color:#6b7280;' }, '总体报名 '), el('strong', { style: 'color:#065f46;' }, state.records.length), el('span', { style: 'color:#6b7280;' }, ' 人'),
+        el('span', { style: 'color:#9ca3af;margin-left:6px;font-size:11px;' }, compTotal > 0 ? `（含随行 ${compTotal} 人）` : '')
+      ),
+      el('div', { style: 'background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 14px;font-size:13px;' },
+        el('span', { style: 'color:#6b7280;' }, '📰 媒体平台 '), el('strong', { style: 'color:#1d4ed8;' }, mediaPlats), el('span', { style: 'color:#6b7280;' }, ' 家')
+      ),
+      el('div', { style: 'background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:8px 14px;font-size:13px;' },
+        el('span', { style: 'color:#6b7280;' }, '⭐ 达人单位 '), el('strong', { style: 'color:#92400e;' }, talentUnits), el('span', { style: 'color:#6b7280;' }, ' 个')
+      )
+    ));
+  }
+
   if (state.records.length === 0) {
     wrap.innerHTML = '';
     wrap.appendChild(el('div', { class: 'empty' },
@@ -4786,14 +4805,11 @@ function renderDashboard() {
   if (stats) {
     stats.innerHTML = '';
     [
-      { num: totalRecords, lbl: '总体报名人数' },
-      { num: allLogs.length, lbl: '累计签到次数' },
-      { num: signedRecords, lbl: '已到场人数（去重）' },
       { num: signRate + '%', lbl: '到场率' },
+      { num: signedRecords, lbl: '已到场人数（去重）' },
+      { num: allLogs.length, lbl: '累计签到次数' },
       { num: avgPerPoint, lbl: '📍 点位平均体验次数' },
       { num: topPoint, lbl: '🔥 最热点位' },
-      { num: uniqueMediaPlatforms, lbl: '📰 媒体平台数（去重）' },
-      { num: uniqueTalentUnits, lbl: '⭐ 达人单位数（去重）' },
     ].forEach(it => {
       stats.appendChild(el('div', { class: 'stat-item' },
         el('div', { class: 'num', style: it.lbl.startsWith('🔥') || it.lbl.startsWith('📍') ? 'font-size:18px;' : '' }, String(it.num)),
