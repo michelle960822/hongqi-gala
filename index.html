@@ -3130,9 +3130,14 @@ function parseCsvBatch() {
       errors.push(`该手机号已报名：${exist.realName}（${formatSlots(exist)}）`);
     }
 
-    // 名额检查
+    // 名额检查（兼容 multi-slot：遍历 records.slots 而非只看 slotIdx）
     if (role && slot) {
-      const used = state.records.filter(r => r.roleId === it.roleId && r.slotIdx === role.slots.indexOf(slot)).length;
+      const targetSlotIdx = role.slots.indexOf(slot);
+      const used = state.records.filter(r => {
+        if (r.roleId !== 'media') return false;
+        if (r.slots && r.slots.length > 0) return r.slots.some(s => s.slotIdx === targetSlotIdx);
+        return r.slotIdx === targetSlotIdx;
+      }).length;
       if (used >= slot.capacity) errors.push(`该时段已报满（${used}/${slot.capacity}）`);
     }
 
