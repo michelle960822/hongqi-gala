@@ -304,6 +304,37 @@ async function ensureSchema(env) {
   try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_phone_hmac ON records(phone_hmac)').run(); } catch (e) {}
   try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_records_created_at ON records(created_at DESC)').run(); } catch (e) {}
 
+  // 旧核销码别名表：扫码兼容（胸卡印刷后重新导入了记录，旧 ID 也能继续签到）
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS record_id_aliases (
+        alias_id    TEXT PRIMARY KEY,
+        platform_id TEXT NOT NULL,
+        role_id     TEXT NOT NULL DEFAULT 'media',
+        note        TEXT,
+        created_at  TEXT DEFAULT (datetime('now'))
+      )
+    `).run();
+  } catch (e) {}
+  try { await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_alias_platform ON record_id_aliases(platform_id)').run(); } catch (e) {}
+
+  // 预置 6 条旧胸卡别名（平台ID → 旧核销码，覆盖在 8 月 10 日已印刷的 6 张胸卡）
+  const legacySeeds = [
+    ['962386', '越玩越野', 'media', '2026-08-10 旧胸卡'],
+    ['953619', '车事纪',   'media', '2026-08-10 旧胸卡'],
+    ['879168', '李书尧',   'media', '2026-08-10 旧胸卡'],
+    ['295861', '穆杉车话', 'media', '2026-08-10 旧胸卡'],
+    ['625064', '玩车报告', 'media', '2026-08-10 旧胸卡'],
+    ['648247', '科技公元', 'media', '2026-08-10 旧胸卡'],
+  ];
+  for (const [aliasId, platformId, roleId, note] of legacySeeds) {
+    try {
+      await env.DB.prepare(
+        'INSERT OR IGNORE INTO record_id_aliases (alias_id, platform_id, role_id, note) VALUES (?, ?, ?, ?)'
+      ).bind(aliasId, platformId, roleId, note).run();
+    } catch (e) {}
+  }
+
   // 签到流水表（visit_log）
   try {
     await env.DB.prepare(`

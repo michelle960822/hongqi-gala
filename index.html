@@ -1104,6 +1104,12 @@
       <div class="stats" id="statsArea"></div>
     </div>
 
+    <!-- 1.5 各点位签到次数（实时） -->
+    <div class="card" id="sec-admin-point-chart" style="overflow:visible;">
+      <h2>📊 各点位签到次数</h2>
+      <div id="adminPointChart" style="margin-top:10px;width:100%;"></div>
+    </div>
+
     <!-- 2. 记录列表（始终展开） -->
     <div class="card" id="sec-records">
       <div class="toolbar">
@@ -1434,6 +1440,7 @@ function idCheckCodeExpected(id17) {
 /* ==================== 状态存储 ==================== */
 const STORAGE_KEY = 'fan_signup_records_v1';
 const VISIT_KEY = 'fan_visit_log_v1';
+const PENDING_KEY = 'fan_visit_pending_v1'; // outbox：push 失败的扫码队列
 // API 路径：使用同源 Pages Function（避免跨域 / workers.dev 被拦问题）
 const API_BASE_URL = (window.HONGQI_API_URL || ''); // 空字符串 = 同源（推荐）
 const SYNC_INTERVAL_MS = 5000; // 5 秒轮询
@@ -1452,7 +1459,7 @@ const PIN_MODES = {
 };
 const DEFAULT_POINTS = [
   '红旗G919原地掉头体验', '红旗G919驼峰桥体验区',
-  '断头路', '窄通道侧方', '垂直窄位', '悬空障碍物'
+  '断头路', '窄通道侧方', '垂直窄位', '悬空障碍物', '紧急避障'
 ];
 // 旧点位（已废弃，仅用于一次性清理 localStorage 里的 customPoints 残留）
 const LEGACY_POINTS = ['试乘', '试驾', '拍摄区', '用餐区', '签到台', '合影墙'];
@@ -1475,6 +1482,7 @@ let state = {
   selectedSlots: new Set(), // 当前选中的时段索引集合（多选模式：media / talent）
   records: [],            // 报名记录
   visitLog: [],           // 签到流水
+  pendingCheckins: [],    // outbox：push 失败待补推的扫码队列
   customPoints: [],       // 自定义点位
   currentCheckin: null,   // 当前正在签到的人员（record id）
   deviceId: null,         // 当前设备的唯一标识
@@ -1827,7 +1835,13 @@ function saveRecords() {
   if (deduped.length !== state.records.length) {
     state.records = deduped;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
+  // Safari 无痕模式 / 存储已满 / 跨站追踪防护下 localStorage.setItem 会抛错，
+  // 这里必须吞掉异常，避免中断提交流程导致按钮卡死在“提交中...”
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
+  } catch (e) {
+    console.warn('[saveRecords] localStorage 写入失败（Safari 无痕/存储已满？），记录仅保留在内存与云端：', e.message);
+  }
 }
 
 function loadVisitLog() {
@@ -1835,6 +1849,56 @@ function loadVisitLog() {
     const raw = localStorage.getItem(VISIT_KEY);
     state.visitLog = raw ? JSON.parse(raw) : [];
   } catch (e) { state.visitLog = []; }
+}
+
+/* ============ outbox 队列：扫码 push 失败时暂存，下次有网自动补推 ============ */
+function loadPending() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+    state.pendingCheckins = Array.isArray(raw) ? raw : [];
+  } catch (e) { state.pendingCheckins = []; }
+}
+function savePending() {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify(state.pendingCheckins || [])); }
+  catch (e) { console.warn('[pending] localStorage 写入失败：', e.message); }
+}
+// 扫码后立即尝试 push，失败则入队；成功后清队
+function pushVisitLog(entry) {
+  return apiPost('/api/visit_log', {
+    id: entry.id,
+    rid: entry.rid,
+    point: entry.point,
+    operator: entry.operator,
+    note: '',
+    time: entry.ts,
+  }).then(resp => {
+    if (resp && resp.__error) {
+      console.warn('[checkin] 云端同步失败，入队待重试：', resp);
+      if (!(state.pendingCheckins || []).some(p => p.id === entry.id)) {
+        state.pendingCheckins.push(entry);
+        savePending();
+      }
+      return false;
+    }
+    console.log('[checkin] 已同步到云端');
+    return true;
+  });
+}
+// 每轮 sync 时调用：把队列里还没上云的逐条补推
+async function flushPending() {
+  if (!_syncEnabled) return;
+  const q = state.pendingCheckins || [];
+  if (!q.length) return;
+  let okCount = 0;
+  for (const entry of q.slice()) {
+    const ok = await pushVisitLog(entry);
+    if (ok) {
+      state.pendingCheckins = state.pendingCheckins.filter(p => p.id !== entry.id);
+      savePending();
+      okCount++;
+    }
+  }
+  if (okCount > 0) console.log('[pending] 补推成功', okCount, '条');
 }
 
 // ============ 云同步层（Cloudflare Workers + D1） ============
@@ -1888,6 +1952,32 @@ async function syncFromCloud(opts = {}) {
   ]);
 
   let changed = false;
+
+// ✅ 先做 visitLog 合并式同步（union + dedup by id）——
+//    任何设备的本地扫码都不丢；admin 删除云端后本地需手动清（trade-off：宁可重复也不丢）
+  if (vlResp && Array.isArray(vlResp.visitLog)) {
+    const cloudVl = vlResp.visitLog.map(v => ({
+      id: v.id,
+      rid: v.rid,
+      point: v.point || '',
+      operator: v.operator || '',
+      note: v.note || '',
+      time: v.time,
+    }));
+    // 双端 union：云端先入，本地独有的（id 不在云端）追加，id 重复以云端为准
+    const byId = new Map();
+    cloudVl.forEach(v => byId.set(v.id, v));
+    state.visitLog.forEach(v => { if (!byId.has(v.id)) byId.set(v.id, v); });
+    const merged = Array.from(byId.values());
+    if (JSON.stringify(merged) !== JSON.stringify(state.visitLog)) {
+      console.log('[sync] visitLog 合并:', state.visitLog.length, '+云', cloudVl.length, '→', merged.length, '条（去重 by id）');
+      state.visitLog = merged;
+      saveVisitLog();
+      changed = true;
+    }
+  }
+
+  // 再做 records 的同步（保留防覆盖 guard，避免导入异步同步期间被冲掉）
   if (recResp && Array.isArray(recResp.records)) {
     // 转换服务器字段名 → 前端字段名
     const newRecords = recResp.records.map(r => {
@@ -1928,29 +2018,14 @@ async function syncFromCloud(opts = {}) {
     // 比较是否变化（保护：云端记录数少于本地时不覆盖，避免导入后异步同步还没完成就被冲掉）
     if (JSON.stringify(newRecords) !== JSON.stringify(state.records)) {
       if (newRecords.length < state.records.length) {
-        console.log('[sync] 跳过覆盖: 云端', newRecords.length, '< 本地', state.records.length);
-        return changed;
+        console.log('[sync] 跳过覆盖 records: 云端', newRecords.length, '< 本地', state.records.length);
+        // 重要：不 return，visitLog 已经在前面同步过了
+      } else {
+        console.log('[sync] 覆盖 records: 云端', newRecords.length, '条 → 本地', state.records.length, '条');
+        state.records = newRecords;
+        saveRecords();
+        changed = true;
       }
-      console.log('[sync] 覆盖本地: 云端', newRecords.length, '条 → 本地', state.records.length, '条');
-      state.records = newRecords;
-      saveRecords();
-      changed = true;
-    }
-  }
-
-  if (vlResp && Array.isArray(vlResp.visitLog)) {
-    const newVl = vlResp.visitLog.map(v => ({
-      id: v.id,
-      rid: v.rid,
-      point: v.point || '',
-      operator: v.operator || '',
-      note: v.note || '',
-      time: v.time,
-    }));
-    if (JSON.stringify(newVl) !== JSON.stringify(state.visitLog)) {
-      state.visitLog = newVl;
-      saveVisitLog();
-      changed = true;
     }
   }
 
@@ -1975,6 +2050,7 @@ function startSyncPolling() {
   if (_syncTimer) clearInterval(_syncTimer);
   // 立即拉一次
   syncFromCloud({ silent: true }).then(() => {
+    flushPending();
     // 首次拉取后强制重新渲染
     if (typeof renderRoleGrid === 'function') renderRoleGrid();
     if (typeof renderSlotList === 'function') renderSlotList();
@@ -1984,7 +2060,7 @@ function startSyncPolling() {
   });
   // 定时轮询
   _syncTimer = setInterval(() => {
-    syncFromCloud({ silent: true });
+    syncFromCloud({ silent: true }).then(() => flushPending());
   }, SYNC_INTERVAL_MS);
 }
 
@@ -1995,7 +2071,12 @@ function stopSyncPolling() {
   }
 }
 function saveVisitLog() {
-  localStorage.setItem(VISIT_KEY, JSON.stringify(state.visitLog));
+  // 同上：Safari 下 localStorage 可能不可用，吞掉异常避免中断同步
+  try {
+    localStorage.setItem(VISIT_KEY, JSON.stringify(state.visitLog));
+  } catch (e) {
+    console.warn('[saveVisitLog] localStorage 写入失败：', e.message);
+  }
 }
 
 function loadPoints() {
@@ -2094,8 +2175,34 @@ function getSlotRemaining(roleId, slotIdx, capacity) {
 
 function getRecordById(rid) {
   if (!rid) return null;
-  return state.records.find(r => r.id === rid) || null;
+  // 1. 直接按 record.id 查找
+  let r = state.records.find(x => x.id === rid);
+  if (r) return r;
+  // 2. 兼容旧核销码：旧胸卡已印刷，重新导入后新 ID 不同 → 通过别名平台映射找回
+  const platformId = LEGACY_BADGE_ALIASES[rid];
+  if (platformId) {
+    return state.records.find(x => x.platformId === platformId && x.roleId === 'media') || null;
+  }
+  return null;
 }
+
+/** 把任意 ID（旧的/新的）解析成当前 records 中的真实 ID；找不到返回 null */
+function resolveCanonicalId(rid) {
+  if (!rid) return null;
+  const r = getRecordById(rid);
+  return r ? r.id : null;
+}
+
+/* 旧胸卡核销码 → 平台ID 别名（兼容 2026-08-10 印刷的 6 张胸卡）
+ * 仅在用户扫码时用于 fallback 查找，永远不写回 records.id */
+const LEGACY_BADGE_ALIASES = {
+  '962386': '越玩越野',
+  '953619': '车事纪',
+  '879168': '李书尧',
+  '295861': '穆杉车话',
+  '625064': '玩车报告',
+  '648247': '科技公元',
+};
 
 function getVisitLogForRecord(rid) {
   return state.visitLog.filter(v => v.rid === rid);
@@ -2169,7 +2276,7 @@ function renderRoleGrid() {
       el('div', { class: 'desc' }, role.desc),
       el('div', { class: 'remain' + (isFull ? ' full' : '') },
         el('span', { class: 'dot' }),
-        isFull ? '所有时段已报满' : `已报 ${totalUsed} / ${totalCap} 人`
+        isFull ? '所有时段已报满' : `已报 ${totalUsed} / ${totalCap} 账号`
       ),
       el('div', { class: 'progress' },
         el('div', { class: 'bar ' + barCls, style: `width: ${Math.round(ratio * 100)}%` })
@@ -2199,7 +2306,7 @@ function renderSlotList() {
       el('span', { style: 'font-size:16px;line-height:1;' }, 'ℹ️'),
       el('span', {},
         el('strong', {}, `集团达人·多选规则：`),
-        `每人最多可选 `,
+        `每账号最多可选 `,
         el('strong', { style: 'color:#dc2626;' }, `${max} 个时段`),
         `（跨天 / 跨时段均可）。已选 ${state.selectedSlots.size} / ${max}。`
       )
@@ -2225,7 +2332,7 @@ function renderSlotList() {
             `📅 ${dateLabel}`)
         : `📅 ${dateLabel}`,
       el('span', { style: 'font-size:12px;color:var(--text-3);font-weight:400;margin-left:8px;' },
-        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 人`),
+        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 账号`),
       isMulti
         ? (() => {
             const selectedCount = items.filter(it => state.selectedSlots.has(it.idx)).length;
@@ -2307,7 +2414,7 @@ function renderForm() {
   } else {
     area.appendChild(el('div', { class: 'helper' },
       el('strong', {}, '已选时段：'),
-      `${slot.dateLabel} ${slot.time}（剩余 ${slot.capacity - getSlotUsed(role.id, state.selectedSlot)} / ${slot.capacity} 人）`
+      `${slot.dateLabel} ${slot.time}（剩余 ${slot.capacity - getSlotUsed(role.id, state.selectedSlot)} / ${slot.capacity} 账号）`
     ));
   }
 
@@ -2384,12 +2491,12 @@ function renderForm() {
 
   /* 随行人员 */
   const compSection = el('div', { class: 'form-grid full' });
-  area.appendChild(el('div', { class: 'section-title' }, `随行人员（最多 ${role.maxCompanions} 人）`));
+  area.appendChild(el('div', { class: 'section-title' }, `随行人员（最多 ${role.maxCompanions} 账号）`));
   area.appendChild(compSection);
 
   const compCount = el('select', { id: 'compCount' });
   for (let i = 0; i <= role.maxCompanions; i++) {
-    const opt = el('option', { value: i }, i === 0 ? '无随行' : `${i} 人`);
+    const opt = el('option', { value: i }, i === 0 ? '无随行' : `${i} 账号`);
     compCount.appendChild(opt);
   }
   compCount.addEventListener('change', () => updateCompanionUI(role));
@@ -2520,7 +2627,7 @@ function selectSlot(idx) {
       // 超出时段数上限拦截（仅对未勾选的操作生效）
       const max = role.maxSlotsPerUser;
       if (max && state.selectedSlots.size >= max) {
-        toast(`「${role.name}」每人最多选 ${max} 个时段，请先取消一个再选`, 'warn');
+        toast(`「${role.name}」每账号最多选 ${max} 个时段，请先取消一个再选`, 'warn');
         return;
       }
       state.selectedSlots.add(idx);
@@ -2743,82 +2850,89 @@ function submitForm() {
     seenPhones.add(c.phone);
   }
 
-  const record = {
-    id: genRecordId(),
-    roleId: role.id,
-    roleName: role.name,
-    slotIdx: primarySlotIdx,
-    date: primarySlot.date,
-    dateLabel: primarySlot.dateLabel,
-    time: primarySlot.time,
-    slots: isMulti
-      ? [...state.selectedSlots].sort().map(si => {
-          const s = role.slots[si];
-          return { slotIdx: si, date: s.date, dateLabel: s.dateLabel, time: s.time };
-        })
-      : [{ slotIdx: primarySlotIdx, date: primarySlot.date, dateLabel: primarySlot.dateLabel, time: primarySlot.time }],
-    category: document.getElementById('category').value.trim(),
-    platformId: document.getElementById('platformId').value.trim(),
-    platform: checkedPlatforms,         // 数组
-    followers: document.getElementById('followers').value.trim(),
-    realName: document.getElementById('realName').value.trim(),
-    idNumber,
-    phone,
-    deviceId: getDeviceId(),
-    compCount,
-    companions,
-    createdAt: formatDateTime(),
-  };
+  let record;
+  try {
+    record = {
+      id: genRecordId(),
+      roleId: role.id,
+      roleName: role.name,
+      slotIdx: primarySlotIdx,
+      date: primarySlot.date,
+      dateLabel: primarySlot.dateLabel,
+      time: primarySlot.time,
+      slots: isMulti
+        ? [...state.selectedSlots].sort().map(si => {
+            const s = role.slots[si];
+            return { slotIdx: si, date: s.date, dateLabel: s.dateLabel, time: s.time };
+          })
+        : [{ slotIdx: primarySlotIdx, date: primarySlot.date, dateLabel: primarySlot.dateLabel, time: primarySlot.time }],
+      category: document.getElementById('category').value.trim(),
+      platformId: document.getElementById('platformId').value.trim(),
+      platform: checkedPlatforms,         // 数组
+      followers: document.getElementById('followers').value.trim(),
+      realName: document.getElementById('realName').value.trim(),
+      idNumber,
+      phone,
+      deviceId: getDeviceId(),
+      compCount,
+      companions,
+      createdAt: formatDateTime(),
+    };
 
-  state.records.push(record);
-  saveRecords();
+    state.records.push(record);
+    saveRecords();
 
-  // 同步到云端（Cloudflare Workers + D1）
-  apiPost('/api/records', {
-    id: record.id,
-    roleId: record.roleId,
-    roleName: record.roleName,
-    slotIdx: record.slotIdx,
-    date: record.date,
-    dateLabel: record.dateLabel,
-    time: record.time,
-    category: record.category,
-    realName: record.realName,
-    idNumber: record.idNumber,
-    phone: record.phone,
-    platformId: record.platformId,
-    platform: record.platform,
-    followers: record.followers,
-    compCount: record.compCount,
-    companions: record.companions,
-    deviceId: record.deviceId,
-    createdAt: record.createdAt,
-  }).then(resp => {
-    if (resp && resp.__error) {
-      console.warn('[submit] 云端同步失败：', resp);
-      // 服务端检测到冲突（409）：回滚本地记录
-      if (resp.status === 409 && resp.message) {
-        state.records = state.records.filter(x => x.id !== record.id);
-        saveRecords();
-        renderRoleGrid();
-        renderSlotList();
-        toast('⚠️ ' + resp.message, 'error', 6000);
+    // 同步到云端（Cloudflare Workers + D1）
+    apiPost('/api/records', {
+      id: record.id,
+      roleId: record.roleId,
+      roleName: record.roleName,
+      slotIdx: record.slotIdx,
+      date: record.date,
+      dateLabel: record.dateLabel,
+      time: record.time,
+      category: record.category,
+      realName: record.realName,
+      idNumber: record.idNumber,
+      phone: record.phone,
+      platformId: record.platformId,
+      platform: record.platform,
+      followers: record.followers,
+      compCount: record.compCount,
+      companions: record.companions,
+      deviceId: record.deviceId,
+      createdAt: record.createdAt,
+    }).then(resp => {
+      if (resp && resp.__error) {
+        console.warn('[submit] 云端同步失败：', resp);
+        // 服务端检测到冲突（409）：回滚本地记录
+        if (resp.status === 409 && resp.message) {
+          state.records = state.records.filter(x => x.id !== record.id);
+          saveRecords();
+          renderRoleGrid();
+          renderSlotList();
+          toast('⚠️ ' + resp.message, 'error', 6000);
+        }
       }
-    }
-  });
+    });
 
-  // 报名成功：直接弹出大 QR 弹窗（背景遮住 form 区域）
-  showSuccessCard(record);
+    // 报名成功：直接弹出大 QR 弹窗（背景遮住 form 区域）
+    showSuccessCard(record);
 
-  resetForm(false);
-  renderRoleGrid();
-  renderSlotList();
-
-  // 1.5s 后恢复按钮
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.textContent = oldText;
-  }, 1500);
+    resetForm(false);
+    renderRoleGrid();
+    renderSlotList();
+  } catch (err) {
+    // 任何意外异常（如 QR 生成失败）都不要卡死按钮，并提示用户
+    console.error('[submit] 提交过程发生异常：', err);
+    toast('提交过程出错，请重试：' + (err && err.message ? err.message : err), 'error');
+  } finally {
+    // 无论成功还是异常，一律恢复按钮（防止 Safari 下卡在“提交中...”）
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }, 1500);
+  }
 }
 
 function showSuccessCard(record) {
@@ -2925,6 +3039,7 @@ function resetForm(clearSelection = true) {
 /* ==================== 管理视图 ==================== */
 function renderAdmin() {
   renderStats();
+  renderPointChart('adminPointChart');
   renderRecordList();
   renderAdminVisitLog();
 }
@@ -3149,7 +3264,7 @@ function parseCsvBatch() {
       }).length;
       if (used >= slot.capacity) {
         it._warnings = it._warnings || [];
-        it._warnings.push(`⚠️ 超额：该时段已报 ${used}/${slot.capacity}（超出 ${used - slot.capacity} 人）`);
+        it._warnings.push(`⚠️ 超额：该时段已报 ${used}/${slot.capacity}（超出 ${used - slot.capacity} 账号）`);
       }
     }
 
@@ -3641,7 +3756,7 @@ function renderStats() {
   state.records.forEach(r => { totalRoles[r.roleId] = (totalRoles[r.roleId] || 0) + 1; });
 
   const items = [
-    { num: state.records.length, lbl: '累计报名（人次）' },
+    { num: state.records.length, lbl: '累计报名（账号数）' },
     { num: totalUsed, lbl: '已占用名额' },
     { num: totalCap - totalUsed, lbl: '剩余名额' },
     { num: totalCap, lbl: '总承载量' },
@@ -3654,7 +3769,7 @@ function renderStats() {
   items.push(
     { num: mediaPlats, lbl: '📰 媒体平台（去重）' },
     { num: talentUnits, lbl: '⭐ 达人单位（去重）' },
-    { num: state.records.length + compTotal, lbl: '🧑‍🤝‍🧑 总人数（含随行）' },
+    { num: state.records.length + compTotal, lbl: '🧑‍🤝‍🧑 总账号（含随行）' },
   );
   items.forEach(it => {
     stats.appendChild(el('div', { class: 'stat-item' },
@@ -3669,7 +3784,7 @@ function renderStats() {
     const cap = role.slots.reduce((s, x) => s + x.capacity, 0);
     stats.appendChild(el('div', { class: 'stat-item' },
       el('div', { class: 'num', style: 'font-size:16px;' }, role.name + ' ' + used + '/' + cap),
-      el('div', { class: 'lbl' }, role.emoji + ' ' + (used >= cap ? '已报满' : `还剩 ${cap - used} 人`))
+      el('div', { class: 'lbl' }, role.emoji + ' ' + (used >= cap ? '已报满' : `还剩 ${cap - used} 账号`))
     ));
   });
 }
@@ -4120,22 +4235,26 @@ function buildBadgesHtml(records) {
   .badge-toolbar button { padding: 6px 14px; border: 1px solid #d1d5db; background: #fff; border-radius: 6px; cursor: pointer; font-family: inherit; }
   .badge-toolbar button.primary { background: #c8102e; color: #fff; border-color: #c8102e; }
   .badge-grid-wrap { max-width: 210mm; margin: 0 auto; background: #fff; padding: 8mm; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-  .badge-grid { display: grid; grid-template-columns: repeat(3, 60mm); gap: 0; justify-content: center; }
-  .badge-card { width: 60mm; height: 30mm; border: 0.5px dashed #ccc; box-sizing: border-box; padding: 2mm 3mm; background: #fff; display: flex; align-items: center; gap: 3mm; page-break-inside: avoid; overflow: hidden; }
+  /* 3 列 × 6 行 = 18 张/页；强制行高 30mm，避免被内容撑高触发分页 */
+  .badge-grid { display: grid; grid-template-columns: repeat(3, 60mm); grid-template-rows: repeat(6, 30mm); grid-auto-rows: 30mm; gap: 0; justify-content: center; }
+  .badge-card { width: 60mm; height: 30mm; border: 0.5px dashed #ccc; box-sizing: border-box; padding: 2mm 3mm; background: #fff; display: flex; align-items: center; gap: 3mm; page-break-inside: avoid; break-inside: avoid; overflow: hidden; }
   .badge-card .qr { width: 24mm; height: 24mm; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .badge-card .qr svg { width: 100%; height: 100%; display: block; }
   .badge-card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; align-self: stretch; }
   .badge-card .info .pid-group { margin: auto 0; }
-  .badge-card .info .label { font-size: 6pt; color: #999; line-height: 1.2; margin-bottom: 1mm; }
-  .badge-card .info .pid { font-size: 10pt; color: #111; font-weight: 600; line-height: 1.2; word-break: break-all; overflow-wrap: break-word; }
-  .badge-card .info .real-name { font-size: 7.5pt; color: #555; line-height: 1.2; margin-top: 0.5mm; word-break: break-all; overflow-wrap: break-word; }
-  .badge-card .info .code { font-size: 8pt; color: #666; line-height: 1.2; }
+  .badge-card .info .label { font-size: 6pt; color: #999; line-height: 1.1; margin-bottom: 0.5mm; }
+  .badge-card .info .pid { font-size: 9pt; color: #111; font-weight: 600; line-height: 1.15; word-break: break-all; overflow-wrap: anywhere; max-height: 11mm; overflow: hidden; }
+  .badge-card .info .real-name { font-size: 7.5pt; color: #555; line-height: 1.15; margin-top: 0.3mm; word-break: break-all; overflow-wrap: anywhere; max-height: 3mm; overflow: hidden; }
+  .badge-card .info .code { font-size: 7.5pt; color: #666; line-height: 1.15; margin-top: 0.3mm; }
   @media print {
     .badge-page { background: #fff; padding: 0; }
     .badge-toolbar { display: none; }
     .badge-grid-wrap { box-shadow: none; padding: 5mm; max-width: none; }
-    .badge-grid { grid-template-columns: repeat(3, 60mm); }
-    @page { size: A4; margin: 5mm; }
+    .badge-grid { grid-template-columns: repeat(3, 60mm); grid-template-rows: repeat(6, 30mm); grid-auto-rows: 30mm; }
+    /* 每张胸卡落在固定 30mm 网格里，page-break-inside: avoid + 固定行高 = 不会被断页切开 */
+    .badge-card { page-break-inside: avoid; break-inside: avoid; }
+    @page { size: A4 portrait; margin: 5mm; }
+    /* 满 18 张自动翻页；超过 18 张浏览器按 A4 高度自然分页 */
   }
 </style>
 </head>
@@ -4143,7 +4262,7 @@ function buildBadgesHtml(records) {
 <div class="badge-page">
   <div class="badge-toolbar">
     <h2>🏷 平台ID贴纸 · ${records.length} 张</h2>
-    <div class="stat">A4 纸张 · 60mm×30mm 贴纸 · 27 张/页（3×9）</div>
+    <div class="stat">A4 纸张 · 60mm×30mm 贴纸 · 18 张/页（3×6，无截断版）</div>
     <div style="flex:1;"></div>
     <button class="primary" onclick="delayedPrint()">🖨 打印</button>
     <button onclick="delayedPrint()" style="background:#f0fdf4;border-color:#bbf7d0;color:#065f46;">📄 导出 PDF</button>
@@ -4496,9 +4615,11 @@ function lookupCheckin(rid) {
     document.getElementById('checkinResultCard').classList.add('hidden');
     return;
   }
-  state.currentCheckin = rid;
+  // 用真实 record.id 作为 currentCheckin（兼容旧核销码：旧 ID 也能找到新记录）
+  state.currentCheckin = r.id;
+  state._pendingQrAlias = (rid !== r.id) ? rid : null; // 标记：本次输入是旧码
   renderCheckinPerson();
-  toast('已加载：' + r.realName, 'success');
+  toast('已加载：' + r.realName + (state._pendingQrAlias ? '（旧核销码已自动识别）' : ''), 'success');
   // 滚动到结果卡
   setTimeout(() => {
     document.getElementById('checkinResultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -4540,19 +4661,10 @@ function confirmCheckin() {
   saveVisitLog();
   renderCheckinPerson();
 
-  // 同步到云端（实时多端看板）
-  apiPost('/api/visit_log', {
-    id: entry.id,
-    rid: entry.rid,
-    point: entry.point,
-    operator: entry.operator,
-    note: '',
-    time: entry.ts,
-  }).then(resp => {
-    if (resp && resp.__error) {
-      console.warn('[checkin] 云端同步失败：', resp);
-    } else {
-      console.log('[checkin] 已同步到云端');
+  // 同步到云端（outbox：成功即上云，失败入队待自动重试）
+  pushVisitLog(entry).then(ok => {
+    if (!ok) {
+      toast('⚠️ 云端同步失败，已本地暂存，联网后自动补传', 'warn');
     }
   });
 
@@ -4882,7 +4994,7 @@ function renderDashboard() {
     stats.innerHTML = '';
     [
       { num: signRate + '%', lbl: '到场率' },
-      { num: signedRecords, lbl: '已到场人数（去重）' },
+      { num: signedRecords, lbl: '已到场账号数（去重）' },
       { num: allLogs.length, lbl: '累计签到次数' },
       { num: avgPerPoint, lbl: '📍 点位平均体验次数' },
       { num: topPoint, lbl: '🔥 最热点位' },
@@ -4895,22 +5007,7 @@ function renderDashboard() {
   }
 
   // 点位柱状图
-  const pointData = Object.entries(pointCounts).map(([k, v]) => ({ label: k, value: v }));
-  getAllPoints().forEach(p => { if (!pointCounts[p]) pointData.push({ label: p, value: 0 }); });
-  const pointWrap = $('#dashPointChart');
-  if (pointWrap) {
-    pointWrap.innerHTML = '';
-    if (pointData.length === 0) {
-      pointWrap.appendChild(el('div', { class: 'empty', style: 'padding:30px;' },
-        el('div', {}, '暂无签到数据')));
-    } else {
-      // 等容器布局完成后再读 clientWidth（避免读到 0）
-      requestAnimationFrame(() => {
-        const containerW = Math.max(pointWrap.clientWidth, 700);
-        pointWrap.appendChild(buildBarChart(pointData, { height: 260, containerWidth: containerW }));
-      });
-    }
-  }
+  renderPointChart('dashPointChart');
 
   // 小时分布
   const hourCounts = new Array(24).fill(0);
@@ -4934,6 +5031,26 @@ function renderDashboard() {
   }
 
   // 「最近签到流水」已移入报名管理（活动结束统一查看），这里不再渲染
+}
+
+function renderPointChart(wrapId) {
+  const pointWrap = document.getElementById(wrapId);
+  if (!pointWrap) return;
+  const allLogs = state.visitLog || [];
+  const pointCounts = {};
+  allLogs.forEach(v => { pointCounts[v.point] = (pointCounts[v.point] || 0) + 1; });
+  const pointData = Object.entries(pointCounts).map(([k, v]) => ({ label: k, value: v }));
+  getAllPoints().forEach(p => { if (!pointCounts[p]) pointData.push({ label: p, value: 0 }); });
+  pointWrap.innerHTML = '';
+  if (pointData.length === 0) {
+    pointWrap.appendChild(el('div', { class: 'empty', style: 'padding:30px;' },
+      el('div', {}, '暂无签到数据')));
+  } else {
+    requestAnimationFrame(() => {
+      const containerW = Math.max(pointWrap.clientWidth, 700);
+      pointWrap.appendChild(buildBarChart(pointData, { height: 260, containerWidth: containerW }));
+    });
+  }
 }
 
 function buildBarChart(data, opts = {}) {
@@ -5720,7 +5837,7 @@ function bindEvents() {
     });
   }
   // 模拟 18 个签到流水
-  const points = ['红旗G919原地掉头体验', '红旗G919驼峰桥体验区', '断头路', '窄通道侧方', '垂直窄位', '悬空障碍物'];
+  const points = ['红旗G919原地掉头体验', '红旗G919驼峰桥体验区', '断头路', '窄通道侧方', '垂直窄位', '悬空障碍物', '紧急避障'];
   const visits = [];
   for (let i = 0; i < 18; i++) {
     visits.push({
@@ -5775,8 +5892,9 @@ applyAuthToNavTabs();
 bindEvents();
 renderRoleGrid();
 
-// 启动云同步轮询（Cloudflare Pages Function + D1 实时多端同步）
+  // 启动云同步轮询（Cloudflare Pages Function + D1 实时多端同步）
 if (_syncEnabled) {
+  loadPending();
   startSyncPolling();
 }
 
