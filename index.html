@@ -3276,8 +3276,10 @@ function commitBatchImport(validItems) {
   const newRecordIds = [];
   const mergedIds = []; // 被合并更新的已有 record id
   let mergeCount = 0;  // 合并了多少条已有记录
+  let _dbgTotal = 0, _dbgMerged = 0, _dbgNew = 0, _dbgSkipped = 0;
 
   groups.forEach((items, idNo) => {
+    _dbgTotal++;
     const base = items[0];
     const role = ROLES[base.roleId];
     const compCount = parseInt(base.item.随行人员数量 || '0', 10);
@@ -3348,6 +3350,7 @@ function commitBatchImport(validItems) {
       }).then(resp => { if (resp && resp.__error) console.warn('[batch] 云端同步失败：', resp); });
       mergedIds.push(exist.id);
       mergeCount++;
+      _dbgMerged++;
     } else {
       // 新记录 → 直接创建（ID 基于身份证号稳定生成，胸卡可复用）
       const record = {
@@ -3374,6 +3377,7 @@ function commitBatchImport(validItems) {
       };
       state.records.push(record);
       newRecordIds.push(record.id);
+      _dbgNew++;
       apiPost('/api/records', {
         id: record.id, roleId: record.roleId, roleName: record.roleName,
         slotIdx: record.slotIdx, date: record.date, dateLabel: record.dateLabel, time: record.time,
@@ -3387,6 +3391,9 @@ function commitBatchImport(validItems) {
       });
     }
   });
+  console.log('[batch-import] 总分组:', _dbgTotal, '已合并:', _dbgMerged, '新增:', _dbgNew, '跳过:', _dbgSkipped);
+  console.log('[batch-import] 合并的ID:', mergedIds.join(','), '新增的ID:', newRecordIds.join(','));
+  console.log('[batch-import] state.records 媒体总数:', state.records.filter(r => r.roleId === 'media').length);
   saveRecords();
   // 自动勾选新导入的记录 → 用户可直接点批量操作
   const allAffectedIds = [...newRecordIds, ...mergedIds];
