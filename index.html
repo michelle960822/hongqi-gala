@@ -3104,12 +3104,12 @@ function parseCsvBatch() {
       else if (v && !validateIdCheckCode(v)) errors.push(`${k} 校验码不通过`);
     });
 
-    // 关键修复 3：与已存在报名查重（身份证 + 手机）
-    if (idNo && existingIds.has(idNo)) {
+    // 与已存在报名查重（仅拦截达人/非媒体；媒体支持分批导入，按身份证合并 slots）
+    if (idNo && existingIds.has(idNo) && !isMediaDate) {
       const exist = existingIdMap.get(idNo);
       errors.push(`该身份证号已报名：${exist.realName}（${formatSlots(exist)}）`);
     }
-    if (phone && state.records.some(r => r.phone === phone)) {
+    if (phone && !isMediaDate && state.records.some(r => r.phone === phone)) {
       const exist = state.records.find(r => r.phone === phone);
       errors.push(`该手机号已报名：${exist.realName}（${formatSlots(exist)}）`);
     }
@@ -3232,24 +3232,20 @@ function commitBatchImport(validItems) {
   const mergedCount = validItems.length;
   const recordCount = groups.size;
 
-  // 检测已有媒体记录：导入前先清理，避免旧数据干扰
-  const oldMediaRecords = state.records.filter(r => r.roleId === 'media');
-  const promptMsg = (oldMediaRecords.length > 0
-    ? `⚠️ 检测到已有 ${oldMediaRecords.length} 条媒体记录。导入将先清空旧数据，以本次导入的 ${recordCount} 条为准。确认继续？`
+  // 分批导入提示：已有记录按身份证号合并，新记录追加
+  const existingMedia = state.records.filter(r => r.roleId === 'media');
+  const promptMsg = (existingMedia.length > 0
+    ? `检测到已有 ${existingMedia.length} 条媒体记录。将按身份证号智能合并：已存在的人合并时段，新的人追加。确认导入 ${recordCount} 条？`
     : (recordCount < mergedCount
       ? `${mergedCount} 行数据已自动合并为 ${recordCount} 条记录（同身份证不同日期的行已合并），确认导入？`
       : `确认导入 ${recordCount} 条媒体记录？`));
   if (!confirm(promptMsg)) return;
 
-  // 清空旧媒体记录
-  if (oldMediaRecords.length > 0) {
-    oldMediaRecords.forEach(r => apiDelete('/api/records/' + encodeURIComponent(r.id)));
-    state.records = state.records.filter(r => r.roleId !== 'media');
-  }
-
   const deviceId = 'batch_import_' + Date.now();
   const platformArr = v => v ? v.split(/[+、,，;；\/]/).map(s => s.trim()).filter(Boolean) : [];
   const newRecordIds = [];
+  const mergedIds = []; // 被合并更新的已有 record id
+  let mergeCount = 0;  // 合并了多少条已有记录
 
   groups.forEach((items, idNo) => {
     const base = items[0];
@@ -3286,63 +3282,86 @@ function commitBatchImport(validItems) {
     });
 
     const primarySlot = role.slots[base.slotIdx];
-    const record = {
-      id: genRecordId(),
-      roleId: base.roleId,
-      roleName: role.name,
-      slotIdx: base.slotIdx,
-      date: primarySlot.date,
-      dateLabel: primarySlot.dateLabel,
-      time: primarySlot.time,
-      slots: uniqueSlots,
-      category: base.item.类别,
-      platformId: base.item.平台ID,
-      platform: platformArr(base.item.主要发布平台),
-      followers: base.item['粉丝数(万)'] || '',
-      realName: base.item.真实姓名,
-      idNumber: idNo,
-      phone: base.item.联系方式,
-      deviceId,
-      compCount,
-      companions,
-      createdAt: formatDateTime(),
-      importedBy: 'batch',
-    };
 
-    state.records.push(record);
-    newRecordIds.push(record.id);
-    apiPost('/api/records', {
-      id: record.id,
-      roleId: record.roleId,
-      roleName: record.roleName,
-      slotIdx: record.slotIdx,
-      date: record.date,
-      dateLabel: record.dateLabel,
-      time: record.time,
-      slots: JSON.stringify(record.slots),
-      category: record.category,
-      platformId: record.platformId,
-      platform: record.platform,
-      followers: record.followers,
-      realName: record.realName,
-      idNumber: record.idNumber,
-      phone: record.phone,
-      deviceId: record.deviceId,
-      compCount: record.compCount,
-      companions: record.companions,
-      createdAt: record.createdAt,
-    }).then(resp => {
-      if (resp && resp.__error) console.warn('[batch] 云端同步失败：', resp);
-    });
+    // 智能合并：检查该身份证号是否已有媒体记录
+    const existingIdx = state.records.findIndex(r => r.roleId === 'media' && (r.idNumber || '').toUpperCase().trim() === idNo);
+    if (existingIdx >= 0) {
+      // 已有记录 → 合并 slots（新时段追加，已有时段跳过）
+      const exist = state.records[existingIdx];
+      const existSlotKeys = new Set((exist.slots || []).map(s => `${s.dateLabel}|${s.time}`));
+      const newSlots = uniqueSlots.filter(s => !existSlotKeys.has(`${s.dateLabel}|${s.time}`));
+      if (newSlots.length > 0) {
+        exist.slots = [...(exist.slots || []), ...newSlots];
+        // 更新主 slot 字段（取最早那个）
+        const allSorted = [...exist.slots].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+        exist.slotIdx = allSorted[0].slotIdx;
+        exist.date = allSorted[0].date;
+        exist.dateLabel = allSorted[0].dateLabel;
+        exist.time = allSorted[0].time;
+        // 同步云端
+        apiPost('/api/records', {
+          id: exist.id, roleId: exist.roleId, roleName: exist.roleName,
+          slotIdx: exist.slotIdx, date: exist.date, dateLabel: exist.dateLabel, time: exist.time,
+          slots: JSON.stringify(exist.slots),
+          category: exist.category, platformId: exist.platformId, platform: exist.platform,
+          followers: exist.followers, realName: exist.realName, idNumber: exist.idNumber,
+          phone: exist.phone, deviceId: exist.deviceId, compCount: exist.compCount,
+          companions: exist.companions, createdAt: exist.createdAt,
+        }).then(resp => { if (resp && resp.__error) console.warn('[batch] 云端同步失败：', resp); });
+      }
+      mergedIds.push(exist.id);
+      mergeCount++;
+    } else {
+      // 新记录 → 直接创建
+      const record = {
+        id: genRecordId(),
+        roleId: base.roleId,
+        roleName: role.name,
+        slotIdx: base.slotIdx,
+        date: primarySlot.date,
+        dateLabel: primarySlot.dateLabel,
+        time: primarySlot.time,
+        slots: uniqueSlots,
+        category: base.item.类别,
+        platformId: base.item.平台ID,
+        platform: platformArr(base.item.主要发布平台),
+        followers: base.item['粉丝数(万)'] || '',
+        realName: base.item.真实姓名,
+        idNumber: idNo,
+        phone: base.item.联系方式,
+        deviceId,
+        compCount,
+        companions,
+        createdAt: formatDateTime(),
+        importedBy: 'batch',
+      };
+      state.records.push(record);
+      newRecordIds.push(record.id);
+      apiPost('/api/records', {
+        id: record.id, roleId: record.roleId, roleName: record.roleName,
+        slotIdx: record.slotIdx, date: record.date, dateLabel: record.dateLabel, time: record.time,
+        slots: JSON.stringify(record.slots),
+        category: record.category, platformId: record.platformId, platform: record.platform,
+        followers: record.followers, realName: record.realName, idNumber: record.idNumber,
+        phone: record.phone, deviceId: record.deviceId, compCount: record.compCount,
+        companions: record.companions, createdAt: record.createdAt,
+      }).then(resp => {
+        if (resp && resp.__error) console.warn('[batch] 云端同步失败：', resp);
+      });
+    }
   });
   saveRecords();
   // 自动勾选新导入的记录 → 用户可直接点批量操作
-  state.selectedRecords = new Set(newRecordIds);
+  const allAffectedIds = [...newRecordIds, ...mergedIds];
+  state.selectedRecords = new Set(allAffectedIds);
   renderRoleGrid();
   renderRecordList();
   renderAdmin();
   renderStats();
-  toast(`✅ 已导入 ${recordCount} 条记录${mergedCount > recordCount ? `（${mergedCount} 行已自动合并）` : ''}，QR 码已显示在「📋 报名列表」中（已自动勾选）`, 'success');
+  const parts = [];
+  if (newRecordIds.length > 0) parts.push(`新增 ${newRecordIds.length} 条`);
+  if (mergeCount > 0) parts.push(`合并 ${mergeCount} 条已有记录`);
+  toast(`✅ ${parts.join('，')}${mergedCount > recordCount ? `（${mergedCount} 行已自动合并）` : ''}`, 'success');
   document.getElementById('csvInput').value = '';
   document.getElementById('csvPreview').innerHTML = '';
   // 滚动到报名列表 + 高亮新行
