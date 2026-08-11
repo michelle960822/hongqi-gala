@@ -1115,9 +1115,8 @@
           <button class="btn btn-ghost" id="btnClearAll">🗑 清空全部</button>
         </div>
       </div>
-      <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <div style="margin-top:8px;">
         <input id="adminSearch" type="text" placeholder="🔍 搜索平台ID / 姓名..." style="width:100%;max-width:320px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
-        <button class="btn btn-ghost" id="btnFixBadgeIds" style="font-size:12px;padding:6px 12px;" title="如果重新导入后核销码变了，用此功能恢复旧胸卡上的核销码">🔧 修复旧胸卡核销码</button>
       </div>
       <div id="recordList"></div>
     </div>
@@ -2095,8 +2094,34 @@ function getSlotRemaining(roleId, slotIdx, capacity) {
 
 function getRecordById(rid) {
   if (!rid) return null;
-  return state.records.find(r => r.id === rid) || null;
+  // 1. 直接按 record.id 查找
+  let r = state.records.find(x => x.id === rid);
+  if (r) return r;
+  // 2. 兼容旧核销码：旧胸卡已印刷，重新导入后新 ID 不同 → 通过别名平台映射找回
+  const platformId = LEGACY_BADGE_ALIASES[rid];
+  if (platformId) {
+    return state.records.find(x => x.platformId === platformId && x.roleId === 'media') || null;
+  }
+  return null;
 }
+
+/** 把任意 ID（旧的/新的）解析成当前 records 中的真实 ID；找不到返回 null */
+function resolveCanonicalId(rid) {
+  if (!rid) return null;
+  const r = getRecordById(rid);
+  return r ? r.id : null;
+}
+
+/* 旧胸卡核销码 → 平台ID 别名（兼容 2026-08-10 印刷的 6 张胸卡）
+ * 仅在用户扫码时用于 fallback 查找，永远不写回 records.id */
+const LEGACY_BADGE_ALIASES = {
+  '962386': '越玩越野',
+  '953619': '车事纪',
+  '879168': '李书尧',
+  '295861': '穆杉车话',
+  '625064': '玩车报告',
+  '648247': '科技公元',
+};
 
 function getVisitLogForRecord(rid) {
   return state.visitLog.filter(v => v.rid === rid);
@@ -4243,49 +4268,6 @@ function exportVisitLogDetail() {
   toast(`已导出 ${rows.length} 条体验详情`, 'success');
 }
 
-/* ==================== 修复旧胸卡核销码 ==================== */
-async function fixBadgeIds() {
-  if (!confirm(
-    '此功能用于恢复被误删后重新导入的媒体记录核销码，使旧胸卡上的二维码能继续使用。\n\n' +
-    '将按以下映射修复 6 条媒体记录的核销码：\n' +
-    '越玩越野 → 962386\n车事纪 → 953619\n李书尧 → 879168\n' +
-    '穆杉车话 → 295861\n玩车报告 → 625064\n科技公元 → 648247\n\n' +
-    '确认执行？'
-  )) return;
-
-  const mappings = [
-    { platformId: '越玩越野', newId: '962386' },
-    { platformId: '车事纪', newId: '953619' },
-    { platformId: '李书尧', newId: '879168' },
-    { platformId: '穆杉车话', newId: '295861' },
-    { platformId: '玩车报告', newId: '625064' },
-    { platformId: '科技公元', newId: '648247' },
-  ];
-
-  try {
-    const resp = await fetch(`${apiBase()}/admin/fix-badge-ids`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ admin_pin: '404112', mappings }),
-    });
-    const data = await resp.json();
-    if (data.error) { toast('修复失败：' + data.error, 'error'); return; }
-
-    const ok = (data.results || []).filter(r => r.status === 'ok');
-    const fails = (data.results || []).filter(r => r.status !== 'ok');
-    let msg = `成功修复 ${ok.length} 条记录`;
-    if (fails.length) msg += `，${fails.length} 条失败`;
-    toast(msg, ok.length ? 'success' : 'error');
-
-    // 刷新云端数据
-    await syncFromCloud();
-    renderRecordList();
-    renderStats();
-  } catch (e) {
-    toast('网络错误：' + e.message, 'error');
-  }
-}
-
 function exportCSV() {
   if (state.records.length === 0) { toast('暂无数据可导出', 'warn'); return; }
   const headers = ['提交时间', '身份', '日期', '时间段', '类别', '平台', '平台ID', '粉丝数(万)', '真实姓名', '身份证号', '联系方式', '随行人数', '随行1姓名', '随行1身份证', '随行1电话', '随行2姓名', '随行2身份证', '随行2电话'];
@@ -4544,9 +4526,11 @@ function lookupCheckin(rid) {
     document.getElementById('checkinResultCard').classList.add('hidden');
     return;
   }
-  state.currentCheckin = rid;
+  // 用真实 record.id 作为 currentCheckin（兼容旧核销码：旧 ID 也能找到新记录）
+  state.currentCheckin = r.id;
+  state._pendingQrAlias = (rid !== r.id) ? rid : null; // 标记：本次输入是旧码
   renderCheckinPerson();
-  toast('已加载：' + r.realName, 'success');
+  toast('已加载：' + r.realName + (state._pendingQrAlias ? '（旧核销码已自动识别）' : ''), 'success');
   // 滚动到结果卡
   setTimeout(() => {
     document.getElementById('checkinResultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5606,8 +5590,6 @@ function bindEvents() {
   $('#btnExportFull').addEventListener('click', exportFullWithPin);
   $('#btnCleanupExpired').addEventListener('click', cleanupExpired);
   $('#btnClearAll').addEventListener('click', clearAllRecords);
-  const btnFixBadgeIds = document.getElementById('btnFixBadgeIds');
-  if (btnFixBadgeIds) btnFixBadgeIds.addEventListener('click', fixBadgeIds);
   
   // 搜索框
   const adminSearch = document.getElementById('adminSearch');
