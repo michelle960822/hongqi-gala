@@ -3316,29 +3316,36 @@ function commitBatchImport(validItems) {
     // 智能合并：检查该身份证号是否已有媒体记录
     const existingIdx = state.records.findIndex(r => r.roleId === 'media' && (r.idNumber || '').toUpperCase().trim() === idNo);
     if (existingIdx >= 0) {
-      // 已有记录 → 合并 slots（新时段追加，已有时段跳过）
+      // 已有记录 → 合并 slots + 以最新数据覆盖所有字段
       const exist = state.records[existingIdx];
       const existSlotKeys = new Set((exist.slots || []).map(s => `${s.dateLabel}|${s.time}`));
       const newSlots = uniqueSlots.filter(s => !existSlotKeys.has(`${s.dateLabel}|${s.time}`));
-      if (newSlots.length > 0) {
-        exist.slots = [...(exist.slots || []), ...newSlots];
-        // 更新主 slot 字段（取最早那个）
-        const allSorted = [...exist.slots].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-        exist.slotIdx = allSorted[0].slotIdx;
-        exist.date = allSorted[0].date;
-        exist.dateLabel = allSorted[0].dateLabel;
-        exist.time = allSorted[0].time;
-        // 同步云端
-        apiPost('/api/records', {
-          id: exist.id, roleId: exist.roleId, roleName: exist.roleName,
-          slotIdx: exist.slotIdx, date: exist.date, dateLabel: exist.dateLabel, time: exist.time,
-          slots: JSON.stringify(exist.slots),
-          category: exist.category, platformId: exist.platformId, platform: exist.platform,
-          followers: exist.followers, realName: exist.realName, idNumber: exist.idNumber,
-          phone: exist.phone, deviceId: exist.deviceId, compCount: exist.compCount,
-          companions: exist.companions, createdAt: exist.createdAt,
-        }).then(resp => { if (resp && resp.__error) console.warn('[batch] 云端同步失败：', resp); });
-      }
+      exist.slots = [...(exist.slots || []), ...newSlots];
+      const allSorted = [...exist.slots].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+      exist.slotIdx = allSorted[0].slotIdx;
+      exist.date = allSorted[0].date;
+      exist.dateLabel = allSorted[0].dateLabel;
+      exist.time = allSorted[0].time;
+      // 以最新导入数据覆盖个人信息
+      exist.realName = base.item.真实姓名;
+      exist.platformId = base.item.平台ID;
+      exist.platform = platformArr(base.item.主要发布平台);
+      exist.followers = base.item['粉丝数(万)'] || '';
+      exist.phone = base.item.联系方式;
+      exist.category = base.item.类别;
+      exist.compCount = compCount;
+      exist.companions = companions;
+      exist.deviceId = deviceId;
+      // 同步云端
+      apiPost('/api/records', {
+        id: exist.id, roleId: exist.roleId, roleName: exist.roleName,
+        slotIdx: exist.slotIdx, date: exist.date, dateLabel: exist.dateLabel, time: exist.time,
+        slots: JSON.stringify(exist.slots),
+        category: exist.category, platformId: exist.platformId, platform: exist.platform,
+        followers: exist.followers, realName: exist.realName, idNumber: exist.idNumber,
+        phone: exist.phone, deviceId: exist.deviceId, compCount: exist.compCount,
+        companions: exist.companions, createdAt: exist.createdAt,
+      }).then(resp => { if (resp && resp.__error) console.warn('[batch] 云端同步失败：', resp); });
       mergedIds.push(exist.id);
       mergeCount++;
     } else {
