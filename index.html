@@ -2276,7 +2276,7 @@ function renderRoleGrid() {
       el('div', { class: 'desc' }, role.desc),
       el('div', { class: 'remain' + (isFull ? ' full' : '') },
         el('span', { class: 'dot' }),
-        isFull ? '所有时段已报满' : `已报 ${totalUsed} / ${totalCap} 个账号`
+        isFull ? '所有时段已报满' : `已报 ${totalUsed} / ${totalCap} 个位置`
       ),
       el('div', { class: 'progress' },
         el('div', { class: 'bar ' + barCls, style: `width: ${Math.round(ratio * 100)}%` })
@@ -2332,7 +2332,7 @@ function renderSlotList() {
             `📅 ${dateLabel}`)
         : `📅 ${dateLabel}`,
       el('span', { style: 'font-size:12px;color:var(--text-3);font-weight:400;margin-left:8px;' },
-        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 个账号`),
+        `共 ${items.length} 个时段 · 每段限额 ${items[0].slot.capacity} 个位置`),
       isMulti
         ? (() => {
             const selectedCount = items.filter(it => state.selectedSlots.has(it.idx)).length;
