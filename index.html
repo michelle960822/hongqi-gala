@@ -1115,7 +1115,7 @@
       <div class="toolbar">
         <div class="left" id="recordCount">共 0 条报名</div>
         <div class="right">
-          <button class="btn btn-ghost" id="btnExport">⬇️ 导出 CSV（脱敏）</button>
+          <button class="btn btn-ghost" id="btnExport" title="导出当前筛选/搜索后可见的列表（脱敏）">⬇️ 导出当前列表（脱敏）</button>
           <button class="btn btn-ghost" id="btnExportFull" title="需管理员 PIN，导出含身份证/手机号完整数据">🔐 导出完整数据</button>
           <button class="btn btn-ghost" id="btnCleanupExpired" title="清理 retention_until 已过期的记录">🧹 清理过期</button>
           <button class="btn btn-ghost" id="btnClearAll">🗑 清空全部</button>
@@ -1123,7 +1123,22 @@
       </div>
       <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <input id="adminSearch" type="text" placeholder="🔍 搜索平台ID / 姓名..." style="flex:1;min-width:200px;max-width:360px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
-        <button class="btn btn-ghost" id="btnExportBySlot" title="按日期+时段筛选后导出对应的媒体/达人名单" style="font-size:13px;">🎯 按时段筛选导出</button>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;">
+        <span style="color:var(--text-3);font-size:12px;letter-spacing:0.5px;">🎯 筛选：</span>
+        <select id="adminFilterDate" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;cursor:pointer;">
+          <option value="all">全部日期</option>
+        </select>
+        <select id="adminFilterTime" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;cursor:pointer;">
+          <option value="all">全部时段</option>
+        </select>
+        <select id="adminFilterRole" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;cursor:pointer;">
+          <option value="all">全部身份</option>
+          <option value="media">📰 仅媒体</option>
+          <option value="talent">⭐ 仅集团达人</option>
+        </select>
+        <button class="btn btn-ghost" id="btnClearFilter" title="清空筛选条件" style="font-size:12px;padding:4px 12px;">✕ 清空筛选</button>
+        <span id="filterSummary" style="color:var(--text-3);font-size:12px;margin-left:auto;"></span>
       </div>
       <div id="recordList"></div>
     </div>
@@ -1490,6 +1505,11 @@ let state = {
   selectedRecords: new Set(), // admin 表格中多选的 record id
   adminPage: 0,            // 报名管理分页（每页 30 条）
   searchQuery: '',         // 报名管理搜索
+  adminFilter: {           // 报名管理筛选（行内筛选）
+    dateLabel: 'all',      // 'all' 或具体日期如 '8月12日'
+    time: 'all',           // 'all' 或具体时段如 '10:00-12:00'
+    roleId: 'all'          // 'all' / 'media' / 'talent'
+  },
   _pendingQrRecord: null, // QR 扫码带过来的临时 record，签到时持久化
 };
 
@@ -3790,17 +3810,169 @@ function renderStats() {
   });
 }
 
+/* ==================== 报名管理筛选（搜索 + 日期/时段/身份） ==================== */
+function getFilteredRecords() {
+  // 1) 默认排序：最新提交在前
+  let list = [...state.records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  // 2) 搜索（平台ID / 姓名）
+  const q = (state.searchQuery || '').trim().toLowerCase();
+  if (q) {
+    list = list.filter(r =>
+      (r.platformId || '').toLowerCase().includes(q) ||
+      (r.realName || '').toLowerCase().includes(q)
+    );
+  }
+
+  // 3) 行内筛选（adminFilter）
+  const f = state.adminFilter || {};
+  const filterActive = (f.dateLabel && f.dateLabel !== 'all')
+    || (f.time && f.time !== 'all')
+    || (f.roleId && f.roleId !== 'all');
+  if (filterActive) {
+    list = list.filter(r => {
+      // 身份
+      if (f.roleId && f.roleId !== 'all' && r.roleId !== f.roleId) return false;
+      // 日期 + 时段（兼容多时段）
+      const slots = r.slots && r.slots.length > 0 ? r.slots : [{ dateLabel: r.dateLabel, time: r.time }];
+      const matchDate = !f.dateLabel || f.dateLabel === 'all' || slots.some(s => s.dateLabel === f.dateLabel);
+      const matchTime = !f.time || f.time === 'all' || slots.some(s => s.time === f.time);
+      if (!matchDate || !matchTime) return false;
+      return true;
+    });
+  }
+
+  return list;
+}
+
+/* 收集记录中所有出现的 (dateLabel, time) 组合（用于填充筛选下拉） */
+function getAdminFilterOptions() {
+  const dates = new Set();
+  const timesByDate = new Map(); // dateLabel -> Set<time>
+  const allTimes = new Set();
+  state.records.forEach(r => {
+    const slots = r.slots && r.slots.length > 0 ? r.slots : [{ dateLabel: r.dateLabel, time: r.time }];
+    slots.forEach(s => {
+      if (!s.dateLabel || !s.time) return;
+      dates.add(s.dateLabel);
+      allTimes.add(s.time);
+      if (!timesByDate.has(s.dateLabel)) timesByDate.set(s.dateLabel, new Set());
+      timesByDate.get(s.dateLabel).add(s.time);
+    });
+  });
+  return {
+    dates: Array.from(dates).sort((a, b) => {
+      const na = parseInt((a.match(/\d+/) || [0])[0], 10);
+      const nb = parseInt((b.match(/\d+/) || [0])[0], 10);
+      return na - nb;
+    }),
+    times: Array.from(allTimes).sort(),
+    timesByDate
+  };
+}
+
+/* 刷新筛选下拉（保留当前选择；增加新选项时保留已选） */
+function refreshFilterOptions() {
+  const { dates, times, timesByDate } = getAdminFilterOptions();
+  const dateSel = document.getElementById('adminFilterDate');
+  const timeSel = document.getElementById('adminFilterTime');
+  if (!dateSel || !timeSel) return;
+
+  const prevDate = state.adminFilter.dateLabel;
+  const prevTime = state.adminFilter.time;
+
+  // 重建日期下拉
+  dateSel.innerHTML = '';
+  dateSel.appendChild(el('option', { value: 'all' }, '全部日期'));
+  dates.forEach(d => {
+    const opt = el('option', { value: d }, d);
+    if (d === prevDate) opt.selected = true;
+    dateSel.appendChild(opt);
+  });
+  if (prevDate && prevDate !== 'all' && !dates.includes(prevDate)) {
+    state.adminFilter.dateLabel = 'all';
+    dateSel.value = 'all';
+  }
+
+  // 重建时段下拉（根据当前日期筛选；若日期=all，显示全部时段）
+  timeSel.innerHTML = '';
+  timeSel.appendChild(el('option', { value: 'all' }, '全部时段'));
+  const visibleTimes = (state.adminFilter.dateLabel && state.adminFilter.dateLabel !== 'all')
+    ? Array.from(timesByDate.get(state.adminFilter.dateLabel) || []).sort()
+    : times;
+  visibleTimes.forEach(t => {
+    const opt = el('option', { value: t }, t);
+    if (t === prevTime) opt.selected = true;
+    timeSel.appendChild(opt);
+  });
+  if (prevTime && prevTime !== 'all' && !visibleTimes.includes(prevTime)) {
+    state.adminFilter.time = 'all';
+    timeSel.value = 'all';
+  }
+
+  // 实时统计
+  const summary = document.getElementById('filterSummary');
+  if (summary) {
+    const filtered = getFilteredRecords();
+    const f = state.adminFilter || {};
+    const activeCount = (f.dateLabel && f.dateLabel !== 'all' ? 1 : 0)
+      + (f.time && f.time !== 'all' ? 1 : 0)
+      + (f.roleId && f.roleId !== 'all' ? 1 : 0);
+    if (activeCount > 0) {
+      summary.textContent = `筛选生效 · 当前显示 ${filtered.length} / ${state.records.length} 条`;
+    } else {
+      summary.textContent = '';
+    }
+  }
+}
+
 function renderRecordList() {
   const wrap = $('#recordList');
   // 关键修复：先清空 wrap，否则多次渲染会重复显示！
   wrap.innerHTML = '';
-  $('#recordCount').textContent = `共 ${state.records.length} 条报名`;
+
+  // 行内筛选 / 搜索合一：调用 getFilteredRecords 获取当前可见列表
+  const filtered = getFilteredRecords();
+  const totalCount = state.records.length;
+  const f = state.adminFilter || {};
+  const q = (state.searchQuery || '').trim();
+  const isFiltered = (f.dateLabel && f.dateLabel !== 'all')
+    || (f.time && f.time !== 'all')
+    || (f.roleId && f.roleId !== 'all')
+    || !!q;
+  $('#recordCount').textContent = isFiltered
+    ? `共 ${totalCount} 条 · 当前显示 ${filtered.length} 条`
+    : `共 ${totalCount} 条报名`;
+
+  // 同步筛选下拉的 summary 与可用选项
+  refreshFilterOptions();
 
   if (state.records.length === 0) {
     wrap.innerHTML = '';
     wrap.appendChild(el('div', { class: 'empty' },
       el('div', { class: 'ico' }, '📭'),
       el('div', {}, '暂无报名数据')
+    ));
+    updateBatchBar();
+    return;
+  }
+  if (filtered.length === 0) {
+    wrap.appendChild(el('div', { class: 'empty' },
+      el('div', { class: 'ico' }, '🔍'),
+      el('div', {}, '当前筛选/搜索条件下无数据'),
+      el('div', { style: 'margin-top:10px;' },
+        el('button', {
+          class: 'btn btn-ghost',
+          onclick: () => {
+            state.adminFilter = { dateLabel: 'all', time: 'all', roleId: 'all' };
+            state.searchQuery = '';
+            const sBox = document.getElementById('adminSearch');
+            if (sBox) sBox.value = '';
+            state.adminPage = 0;
+            renderRecordList();
+          }
+        }, '清空筛选/搜索')
+      )
     ));
     updateBatchBar();
     return;
@@ -3849,18 +4021,6 @@ function renderRecordList() {
   const tbl = el('table');
   const thead = el('thead');
   const tbody = el('tbody');
-  const sorted = [...state.records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-
-  // 搜索过滤
-  const q = (state.searchQuery || '').trim().toLowerCase();
-  let filtered = sorted;
-  if (q) {
-    filtered = sorted.filter(r =>
-      (r.platformId || '').toLowerCase().includes(q) ||
-      (r.realName || '').toLowerCase().includes(q)
-    );
-    $('#recordCount').textContent = `搜索 "${state.searchQuery}" — ${filtered.length} / ${sorted.length} 条`;
-  }
 
   const PAGE_SIZE = 30;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -4364,8 +4524,25 @@ function exportVisitLogDetail() {
 }
 
 function exportCSV() {
-  if (state.records.length === 0) { toast('暂无数据可导出', 'warn'); return; }
-  return doExportCSV(state.records, `红旗粉丝家年华报名_${new Date().toISOString().slice(0, 10)}.csv`, 'CSV 已导出');
+  // 导出当前筛选/搜索后可见的列表（与表格里看到的一致）
+  const records = getFilteredRecords();
+  if (records.length === 0) { toast('当前筛选条件下无数据可导出', 'warn'); return; }
+  const f = state.adminFilter || {};
+  const q = (state.searchQuery || '').trim();
+  const isFiltered = (f.dateLabel && f.dateLabel !== 'all')
+    || (f.time && f.time !== 'all')
+    || (f.roleId && f.roleId !== 'all')
+    || !!q;
+  // 文件名带筛选提示
+  const datePart = (f.dateLabel && f.dateLabel !== 'all')
+    ? '_' + (f.dateLabel.replace(/[^\d]/g, '') || '某日') : '';
+  const timePart = (f.time && f.time !== 'all')
+    ? '_' + (f.time.replace(/[^\d]/g, '').slice(0, 4) || '某时段') : '';
+  const rolePart = (f.roleId && f.roleId !== 'all')
+    ? '_' + (f.roleId === 'media' ? '媒体' : '达人') : '';
+  const filename = `红旗粉丝家年华报名${datePart}${timePart}${rolePart}_${new Date().toISOString().slice(0, 10)}.csv`;
+  const msg = isFiltered ? `已导出 ${records.length} 条（按当前筛选）` : 'CSV 已导出';
+  return doExportCSV(records, filename, msg);
 }
 
 /* 通用 CSV 导出（脱敏）：records → CSV → 下载 */
@@ -4401,147 +4578,6 @@ function doExportCSV(records, filename, successMsg) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast(successMsg, 'success');
-}
-
-/* 按日期+时段筛选后导出（供"🎯 按时段筛选导出"使用） */
-function exportFilteredCSV(dateLabel, time, roleId) {
-  const filtered = state.records.filter(r => {
-    // 时段匹配（兼容多时段账号）
-    const slots = r.slots && r.slots.length > 0 ? r.slots : [{ dateLabel: r.dateLabel, time: r.time }];
-    const matchSlot = slots.some(s => s.dateLabel === dateLabel && s.time === time);
-    if (!matchSlot) return false;
-    // 身份筛选
-    if (roleId !== 'all' && r.roleId !== roleId) return false;
-    return true;
-  });
-  if (filtered.length === 0) {
-    toast('该筛选条件下无数据', 'warn');
-    return false;
-  }
-  // 文件名清洗（去掉"月"和"日"，用纯数字日期 + 时段；身份部分中文）
-  const datePart = (dateLabel || '').replace(/[^\d]/g, '') || '日期';
-  const timePart = (time || '').replace(/[^\d]/g, '').slice(0, 4) || '时段';
-  const rolePart = roleId === 'media' ? '媒体' : roleId === 'talent' ? '达人' : '全部';
-  const filename = `红旗粉丝家年华_${datePart}_${timePart}_${rolePart}.csv`;
-  doExportCSV(filtered, filename, `已导出 ${filtered.length} 条记录`);
-  return true;
-}
-
-/* 打开筛选导出弹窗（日期 → 时段 → 身份） */
-function openFilterExportModal() {
-  // 收集所有 (dateLabel, time) 组合
-  const slotMap = new Map();
-  state.records.forEach(r => {
-    const slots = r.slots && r.slots.length > 0 ? r.slots : [{ dateLabel: r.dateLabel, time: r.time }];
-    slots.forEach(s => {
-      if (!s.dateLabel || !s.time) return;
-      if (!slotMap.has(s.dateLabel)) slotMap.set(s.dateLabel, new Set());
-      slotMap.get(s.dateLabel).add(s.time);
-    });
-  });
-
-  if (slotMap.size === 0) {
-    toast('当前无任何报名数据可筛选', 'warn');
-    return;
-  }
-
-  const dates = Array.from(slotMap.keys()).sort((a, b) => {
-    // 按日期里的数字排序（如 8月12日 vs 8月13日）
-    const na = parseInt((a.match(/\d+/) || [0])[0], 10);
-    const nb = parseInt((b.match(/\d+/) || [0])[0], 10);
-    return na - nb;
-  });
-
-  // body
-  const dateSel = el('select', {
-    id: 'fexDateSel',
-    style: 'width:100%;padding:10px;border:1.5px solid var(--border-2);border-radius:8px;font-size:14px;background:#fff;'
-  });
-  dates.forEach(d => dateSel.appendChild(el('option', { value: d }, d)));
-
-  const timeSel = el('select', {
-    id: 'fexTimeSel',
-    style: 'width:100%;padding:10px;border:1.5px solid var(--border-2);border-radius:8px;font-size:14px;background:#fff;'
-  });
-
-  const roleSel = el('select', {
-    id: 'fexRoleSel',
-    style: 'width:100%;padding:10px;border:1.5px solid var(--border-2);border-radius:8px;font-size:14px;background:#fff;'
-  });
-  roleSel.appendChild(el('option', { value: 'all' }, '📋 全部（媒体 + 达人）'));
-  roleSel.appendChild(el('option', { value: 'media' }, '📰 仅媒体'));
-  roleSel.appendChild(el('option', { value: 'talent' }, '⭐ 仅集团达人'));
-
-  const countEl = el('div', { id: 'fexCount', style: 'margin-top:4px;padding:12px;background:var(--bg-2);border-radius:8px;font-size:13px;color:var(--text-2);line-height:1.7;' });
-
-  function updateTimeOptions() {
-    timeSel.innerHTML = '';
-    const times = Array.from(slotMap.get(dateSel.value) || []).sort();
-    times.forEach(t => timeSel.appendChild(el('option', { value: t }, t)));
-    updateCount();
-  }
-
-  function updateCount() {
-    const d = dateSel.value;
-    const t = timeSel.value;
-    const r = roleSel.value;
-    const list = state.records.filter(rec => {
-      const slots = rec.slots && rec.slots.length > 0 ? rec.slots : [{ dateLabel: rec.dateLabel, time: rec.time }];
-      if (!slots.some(s => s.dateLabel === d && s.time === t)) return false;
-      if (r !== 'all' && rec.roleId !== r) return false;
-      return true;
-    });
-    const mediaCount = list.filter(f => f.roleId === 'media').length;
-    const talentCount = list.filter(f => f.roleId === 'talent').length;
-    countEl.innerHTML = '';
-    countEl.appendChild(el('div', { style: 'font-weight:600;color:var(--text-1);margin-bottom:4px;' }, `📊 该时段共 ${list.length} 条记录`));
-    if (r === 'all') {
-      countEl.appendChild(el('div', {}, `📰 媒体 ${mediaCount} 条 · ⭐ 达人 ${talentCount} 条`));
-    } else if (r === 'media') {
-      countEl.appendChild(el('div', {}, `📰 媒体 ${list.length} 条`));
-    } else {
-      countEl.appendChild(el('div', {}, `⭐ 达人 ${list.length} 条`));
-    }
-  }
-
-  dateSel.addEventListener('change', updateTimeOptions);
-  roleSel.addEventListener('change', updateCount);
-
-  const body = el('div', { style: 'display:flex;flex-direction:column;gap:14px;min-width:340px;' },
-    el('div', {},
-      el('div', { style: 'font-size:12px;color:var(--text-3);margin-bottom:6px;letter-spacing:1px;' }, '选择日期'),
-      dateSel
-    ),
-    el('div', {},
-      el('div', { style: 'font-size:12px;color:var(--text-3);margin-bottom:6px;letter-spacing:1px;' }, '选择时段'),
-      timeSel
-    ),
-    el('div', {},
-      el('div', { style: 'font-size:12px;color:var(--text-3);margin-bottom:6px;letter-spacing:1px;' }, '报名类型'),
-      roleSel
-    ),
-    countEl
-  );
-
-  openModal({
-    title: '🎯 按时段筛选导出',
-    body,
-    footer: el('div', { style: 'display:flex;gap:8px;justify-content:flex-end;' },
-      el('button', { class: 'btn btn-secondary', onclick: closeModal }, '取消'),
-      el('button', {
-        class: 'btn btn-primary',
-        onclick: () => {
-          const d = dateSel.value, t = timeSel.value, r = roleSel.value;
-          if (!d || !t) { toast('请选择日期和时段', 'warn'); return; }
-          const ok = exportFilteredCSV(d, t, r);
-          if (ok) closeModal();
-        }
-      }, '⬇️ 导出 CSV（脱敏）')
-    )
-  });
-
-  // 初始化时段和统计（openModal 之后 DOM 已插入）
-  setTimeout(updateTimeOptions, 0);
 }
 
 function clearAllRecords() {
@@ -5830,15 +5866,53 @@ function bindEvents() {
   $('#btnExportFull').addEventListener('click', exportFullWithPin);
   $('#btnCleanupExpired').addEventListener('click', cleanupExpired);
   $('#btnClearAll').addEventListener('click', clearAllRecords);
-  const btnExportBySlot = document.getElementById('btnExportBySlot');
-  if (btnExportBySlot) btnExportBySlot.addEventListener('click', openFilterExportModal);
-  
+
   // 搜索框
   const adminSearch = document.getElementById('adminSearch');
   if (adminSearch) {
     adminSearch.value = state.searchQuery || '';
     adminSearch.addEventListener('input', () => {
       state.searchQuery = adminSearch.value;
+      state.adminPage = 0;
+      renderRecordList();
+    });
+  }
+
+  // 行内筛选（日期 / 时段 / 身份）
+  const adminFilterDate = document.getElementById('adminFilterDate');
+  const adminFilterTime = document.getElementById('adminFilterTime');
+  const adminFilterRole = document.getElementById('adminFilterRole');
+  if (adminFilterDate) {
+    adminFilterDate.value = state.adminFilter.dateLabel || 'all';
+    adminFilterDate.addEventListener('change', () => {
+      state.adminFilter.dateLabel = adminFilterDate.value;
+      state.adminPage = 0;
+      renderRecordList();
+    });
+  }
+  if (adminFilterTime) {
+    adminFilterTime.value = state.adminFilter.time || 'all';
+    adminFilterTime.addEventListener('change', () => {
+      state.adminFilter.time = adminFilterTime.value;
+      state.adminPage = 0;
+      renderRecordList();
+    });
+  }
+  if (adminFilterRole) {
+    adminFilterRole.value = state.adminFilter.roleId || 'all';
+    adminFilterRole.addEventListener('change', () => {
+      state.adminFilter.roleId = adminFilterRole.value;
+      state.adminPage = 0;
+      renderRecordList();
+    });
+  }
+  const btnClearFilter = document.getElementById('btnClearFilter');
+  if (btnClearFilter) {
+    btnClearFilter.addEventListener('click', () => {
+      state.adminFilter = { dateLabel: 'all', time: 'all', roleId: 'all' };
+      state.searchQuery = '';
+      const sBox = document.getElementById('adminSearch');
+      if (sBox) sBox.value = '';
       state.adminPage = 0;
       renderRecordList();
     });
