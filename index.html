@@ -1121,8 +1121,9 @@
           <button class="btn btn-ghost" id="btnClearAll">🗑 清空全部</button>
         </div>
       </div>
-      <div style="margin-top:8px;">
-        <input id="adminSearch" type="text" placeholder="🔍 搜索平台ID / 姓名..." style="width:100%;max-width:320px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input id="adminSearch" type="text" placeholder="🔍 搜索平台ID / 姓名..." style="flex:1;min-width:200px;max-width:360px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;">
+        <button class="btn btn-ghost" id="btnExportBySlot" title="按日期+时段筛选后导出对应的媒体/达人名单" style="font-size:13px;">🎯 按时段筛选导出</button>
       </div>
       <div id="recordList"></div>
     </div>
@@ -3847,20 +3848,43 @@ function renderRecordList() {
 
   const tbl = el('table');
   const thead = el('thead');
-  // 全选复选框
-  const allChecked = state.records.length > 0 && state.records.every(r => state.selectedRecords.has(r.id));
+  const tbody = el('tbody');
+  const sorted = [...state.records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  // 搜索过滤
+  const q = (state.searchQuery || '').trim().toLowerCase();
+  let filtered = sorted;
+  if (q) {
+    filtered = sorted.filter(r =>
+      (r.platformId || '').toLowerCase().includes(q) ||
+      (r.realName || '').toLowerCase().includes(q)
+    );
+    $('#recordCount').textContent = `搜索 "${state.searchQuery}" — ${filtered.length} / ${sorted.length} 条`;
+  }
+
+  const PAGE_SIZE = 30;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (state.adminPage >= totalPages) state.adminPage = totalPages - 1;
+  const pageSlice = filtered.slice(state.adminPage * PAGE_SIZE, (state.adminPage + 1) * PAGE_SIZE);
+
+  // 全选复选框 — 仅影响当前页（不影响其他页已选项）
+  const visibleSelected = pageSlice.filter(r => state.selectedRecords.has(r.id)).length;
+  const allPageChecked = pageSlice.length > 0 && visibleSelected === pageSlice.length;
+  const somePageChecked = visibleSelected > 0 && visibleSelected < pageSlice.length;
+  const headerCheckbox = el('input', {
+    type: 'checkbox',
+    checked: allPageChecked,
+    title: '全选/取消当前页（不影响其他页已选项）',
+    onchange: (e) => {
+      if (e.target.checked) pageSlice.forEach(r => state.selectedRecords.add(r.id));
+      else pageSlice.forEach(r => state.selectedRecords.delete(r.id));
+      renderRecordList();
+    }
+  });
+  headerCheckbox.indeterminate = somePageChecked;
+
   thead.appendChild(el('tr', {},
-    el('th', { class: 'check-col' },
-      el('input', {
-        type: 'checkbox',
-        checked: allChecked,
-        onchange: (e) => {
-          if (e.target.checked) state.records.forEach(r => state.selectedRecords.add(r.id));
-          else state.selectedRecords.clear();
-          renderRecordList();
-        }
-      })
-    ),
+    el('th', { class: 'check-col' }, headerCheckbox),
     el('th', {}, '提交时间'),
     el('th', {}, '身份'),
     el('th', {}, '拍摄时段'),
@@ -3874,24 +3898,6 @@ function renderRecordList() {
   ));
   tbl.appendChild(thead);
 
-  const tbody = el('tbody');
-  const sorted = [...state.records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  
-  // 搜索过滤
-  const q = (state.searchQuery || '').trim().toLowerCase();
-  let filtered = sorted;
-  if (q) {
-    filtered = sorted.filter(r => 
-      (r.platformId || '').toLowerCase().includes(q) ||
-      (r.realName || '').toLowerCase().includes(q)
-    );
-    $('#recordCount').textContent = `搜索 "${state.searchQuery}" — ${filtered.length} / ${sorted.length} 条`;
-  }
-  
-  const PAGE_SIZE = 30;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  if (state.adminPage >= totalPages) state.adminPage = totalPages - 1;
-  const pageSlice = filtered.slice(state.adminPage * PAGE_SIZE, (state.adminPage + 1) * PAGE_SIZE);
   pageSlice.forEach(r => {
     const compText = r.compCount > 0
       ? r.companions.map(c =>
@@ -4359,8 +4365,13 @@ function exportVisitLogDetail() {
 
 function exportCSV() {
   if (state.records.length === 0) { toast('暂无数据可导出', 'warn'); return; }
+  return doExportCSV(state.records, `红旗粉丝家年华报名_${new Date().toISOString().slice(0, 10)}.csv`, 'CSV 已导出');
+}
+
+/* 通用 CSV 导出（脱敏）：records → CSV → 下载 */
+function doExportCSV(records, filename, successMsg) {
   const headers = ['提交时间', '身份', '日期', '时间段', '类别', '平台', '平台ID', '粉丝数(万)', '真实姓名', '身份证号', '联系方式', '随行人数', '随行1姓名', '随行1身份证', '随行1电话', '随行2姓名', '随行2身份证', '随行2电话'];
-  const rows = state.records.map(r => {
+  const rows = records.map(r => {
     const c1 = r.companions[0] || {};
     const c2 = r.companions[1] || {};
     const platformText = Array.isArray(r.platform) ? r.platform.join('、') : (r.platform || '');
@@ -4380,17 +4391,157 @@ function exportCSV() {
       : s;
   }).join(',')).join('\n');
 
-  // 加 BOM 让 Excel 正确识别 UTF-8
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `红旗粉丝家年华报名_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast('CSV 已导出', 'success');
+  toast(successMsg, 'success');
+}
+
+/* 按日期+时段筛选后导出（供"🎯 按时段筛选导出"使用） */
+function exportFilteredCSV(dateLabel, time, roleId) {
+  const filtered = state.records.filter(r => {
+    // 时段匹配（兼容多时段账号）
+    const slots = r.slots && r.slots.length > 0 ? r.slots : [{ dateLabel: r.dateLabel, time: r.time }];
+    const matchSlot = slots.some(s => s.dateLabel === dateLabel && s.time === time);
+    if (!matchSlot) return false;
+    // 身份筛选
+    if (roleId !== 'all' && r.roleId !== roleId) return false;
+    return true;
+  });
+  if (filtered.length === 0) {
+    toast('该筛选条件下无数据', 'warn');
+    return false;
+  }
+  // 文件名清洗（去掉"月"和"日"，用纯数字日期 + 时段；身份部分中文）
+  const datePart = (dateLabel || '').replace(/[^\d]/g, '') || '日期';
+  const timePart = (time || '').replace(/[^\d]/g, '').slice(0, 4) || '时段';
+  const rolePart = roleId === 'media' ? '媒体' : roleId === 'talent' ? '达人' : '全部';
+  const filename = `红旗粉丝家年华_${datePart}_${timePart}_${rolePart}.csv`;
+  doExportCSV(filtered, filename, `已导出 ${filtered.length} 条记录`);
+  return true;
+}
+
+/* 打开筛选导出弹窗（日期 → 时段 → 身份） */
+function openFilterExportModal() {
+  // 收集所有 (dateLabel, time) 组合
+  const slotMap = new Map();
+  state.records.forEach(r => {
+    const slots = r.slots && r.slots.length > 0 ? r.slots : [{ dateLabel: r.dateLabel, time: r.time }];
+    slots.forEach(s => {
+      if (!s.dateLabel || !s.time) return;
+      if (!slotMap.has(s.dateLabel)) slotMap.set(s.dateLabel, new Set());
+      slotMap.get(s.dateLabel).add(s.time);
+    });
+  });
+
+  if (slotMap.size === 0) {
+    toast('当前无任何报名数据可筛选', 'warn');
+    return;
+  }
+
+  const dates = Array.from(slotMap.keys()).sort((a, b) => {
+    // 按日期里的数字排序（如 8月12日 vs 8月13日）
+    const na = parseInt((a.match(/\d+/) || [0])[0], 10);
+    const nb = parseInt((b.match(/\d+/) || [0])[0], 10);
+    return na - nb;
+  });
+
+  // body
+  const dateSel = el('select', {
+    id: 'fexDateSel',
+    style: 'width:100%;padding:10px;border:1.5px solid var(--border-2);border-radius:8px;font-size:14px;background:#fff;'
+  });
+  dates.forEach(d => dateSel.appendChild(el('option', { value: d }, d)));
+
+  const timeSel = el('select', {
+    id: 'fexTimeSel',
+    style: 'width:100%;padding:10px;border:1.5px solid var(--border-2);border-radius:8px;font-size:14px;background:#fff;'
+  });
+
+  const roleSel = el('select', {
+    id: 'fexRoleSel',
+    style: 'width:100%;padding:10px;border:1.5px solid var(--border-2);border-radius:8px;font-size:14px;background:#fff;'
+  });
+  roleSel.appendChild(el('option', { value: 'all' }, '📋 全部（媒体 + 达人）'));
+  roleSel.appendChild(el('option', { value: 'media' }, '📰 仅媒体'));
+  roleSel.appendChild(el('option', { value: 'talent' }, '⭐ 仅集团达人'));
+
+  const countEl = el('div', { id: 'fexCount', style: 'margin-top:4px;padding:12px;background:var(--bg-2);border-radius:8px;font-size:13px;color:var(--text-2);line-height:1.7;' });
+
+  function updateTimeOptions() {
+    timeSel.innerHTML = '';
+    const times = Array.from(slotMap.get(dateSel.value) || []).sort();
+    times.forEach(t => timeSel.appendChild(el('option', { value: t }, t)));
+    updateCount();
+  }
+
+  function updateCount() {
+    const d = dateSel.value;
+    const t = timeSel.value;
+    const r = roleSel.value;
+    const list = state.records.filter(rec => {
+      const slots = rec.slots && rec.slots.length > 0 ? rec.slots : [{ dateLabel: rec.dateLabel, time: rec.time }];
+      if (!slots.some(s => s.dateLabel === d && s.time === t)) return false;
+      if (r !== 'all' && rec.roleId !== r) return false;
+      return true;
+    });
+    const mediaCount = list.filter(f => f.roleId === 'media').length;
+    const talentCount = list.filter(f => f.roleId === 'talent').length;
+    countEl.innerHTML = '';
+    countEl.appendChild(el('div', { style: 'font-weight:600;color:var(--text-1);margin-bottom:4px;' }, `📊 该时段共 ${list.length} 条记录`));
+    if (r === 'all') {
+      countEl.appendChild(el('div', {}, `📰 媒体 ${mediaCount} 条 · ⭐ 达人 ${talentCount} 条`));
+    } else if (r === 'media') {
+      countEl.appendChild(el('div', {}, `📰 媒体 ${list.length} 条`));
+    } else {
+      countEl.appendChild(el('div', {}, `⭐ 达人 ${list.length} 条`));
+    }
+  }
+
+  dateSel.addEventListener('change', updateTimeOptions);
+  roleSel.addEventListener('change', updateCount);
+
+  const body = el('div', { style: 'display:flex;flex-direction:column;gap:14px;min-width:340px;' },
+    el('div', {},
+      el('div', { style: 'font-size:12px;color:var(--text-3);margin-bottom:6px;letter-spacing:1px;' }, '选择日期'),
+      dateSel
+    ),
+    el('div', {},
+      el('div', { style: 'font-size:12px;color:var(--text-3);margin-bottom:6px;letter-spacing:1px;' }, '选择时段'),
+      timeSel
+    ),
+    el('div', {},
+      el('div', { style: 'font-size:12px;color:var(--text-3);margin-bottom:6px;letter-spacing:1px;' }, '报名类型'),
+      roleSel
+    ),
+    countEl
+  );
+
+  openModal({
+    title: '🎯 按时段筛选导出',
+    body,
+    footer: el('div', { style: 'display:flex;gap:8px;justify-content:flex-end;' },
+      el('button', { class: 'btn btn-secondary', onclick: closeModal }, '取消'),
+      el('button', {
+        class: 'btn btn-primary',
+        onclick: () => {
+          const d = dateSel.value, t = timeSel.value, r = roleSel.value;
+          if (!d || !t) { toast('请选择日期和时段', 'warn'); return; }
+          const ok = exportFilteredCSV(d, t, r);
+          if (ok) closeModal();
+        }
+      }, '⬇️ 导出 CSV（脱敏）')
+    )
+  });
+
+  // 初始化时段和统计（openModal 之后 DOM 已插入）
+  setTimeout(updateTimeOptions, 0);
 }
 
 function clearAllRecords() {
@@ -5679,6 +5830,8 @@ function bindEvents() {
   $('#btnExportFull').addEventListener('click', exportFullWithPin);
   $('#btnCleanupExpired').addEventListener('click', cleanupExpired);
   $('#btnClearAll').addEventListener('click', clearAllRecords);
+  const btnExportBySlot = document.getElementById('btnExportBySlot');
+  if (btnExportBySlot) btnExportBySlot.addEventListener('click', openFilterExportModal);
   
   // 搜索框
   const adminSearch = document.getElementById('adminSearch');
