@@ -32,6 +32,10 @@ async function resolveRecordId(env, rawId) {
   return real ? real.id : null;
 }
 
+const POINT_ALIASES = {
+  'hs6phev': '垂直窄位',
+  'hs6p hev': '垂直窄位',
+};
 export async function onRequestPost(context) {
   // POST /api/records/<id>/checkin - 给某条报名打一个签到点
   const { env, params, request } = context;
@@ -45,12 +49,13 @@ export async function onRequestPost(context) {
   const resolvedId = await resolveRecordId(env, rawRid);
   if (!resolvedId) return json({ error: 'record_not_found', hint: '该编号既不在 records 表也不在 id 别名表中' }, 404);
 
+  const point = POINT_ALIASES[body.point] || body.point || '';
   const id = 'vl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   await env.DB.prepare(`
     INSERT INTO visit_log (id, rid, point, operator, note, time)
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(
-    id, resolvedId, body.point || '', body.operator || '', body.note || '',
+    id, resolvedId, point, body.operator || '', body.note || '',
     body.time || new Date().toISOString()
   ).run();
   return json({ ok: true, id, resolved_id: resolvedId, original_id: rawRid });
