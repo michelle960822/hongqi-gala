@@ -51,7 +51,7 @@ export async function onRequestPost(context) {
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(
     id, resolvedId, body.point || '', body.operator || '', body.note || '',
-    new Date().toISOString()
+    body.time || new Date().toISOString()
   ).run();
   return json({ ok: true, id, resolved_id: resolvedId, original_id: rawRid });
 }
