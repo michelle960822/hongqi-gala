@@ -1477,6 +1477,14 @@ const DEFAULT_POINTS = [
   '红旗G919原地掉头体验', '红旗G919驼峰桥体验区',
   '断头路', '窄通道侧方', '垂直窄位', '悬空障碍物', '紧急避障'
 ];
+// 点位 typo 归并（历史录入错误合并到标准名，不影响原始数据）
+const POINT_ALIASES = {
+  'hs6phev': '垂直窄位',
+  'hs6p hev': '垂直窄位',
+};
+function normalizePoint(p) {
+  return POINT_ALIASES[p] || p;
+}
 // 旧点位（已废弃，仅用于一次性清理 localStorage 里的 customPoints 残留）
 const LEGACY_POINTS = ['试乘', '试驾', '拍摄区', '用餐区', '签到台', '合影墙'];
 // 旧 key 兼容（一次性迁移到新 key）
@@ -4820,6 +4828,7 @@ function confirmCheckin() {
   let point = selectedPoint;
   const customVal = document.getElementById('checkinCustomPoint').value.trim();
   if (customVal) point = customVal;
+  point = normalizePoint(point); // 归并历史 typo，避免再次写入错误点位
   if (!point) { toast('请先选择/输入签到点位', 'warn'); return false; }
 
   // 自定义点位持久化
@@ -5229,7 +5238,10 @@ function renderPointChart(wrapId) {
   if (!pointWrap) return;
   const allLogs = state.visitLog || [];
   const pointCounts = {};
-  allLogs.forEach(v => { pointCounts[v.point] = (pointCounts[v.point] || 0) + 1; });
+  allLogs.forEach(v => {
+    const p = normalizePoint(v.point);
+    pointCounts[p] = (pointCounts[p] || 0) + 1;
+  });
   const pointData = Object.entries(pointCounts).map(([k, v]) => ({ label: k, value: v }));
   getAllPoints().forEach(p => { if (!pointCounts[p]) pointData.push({ label: p, value: 0 }); });
   pointWrap.innerHTML = '';
